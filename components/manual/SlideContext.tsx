@@ -20,23 +20,25 @@ export default function SlideContext({ chunk }: SlideContextProps) {
 
   useEffect(() => {
     if (!chunk) return
-    setLoading(true)
-    setError('')
-    setSnippets([])
-
-    const query = chunk.page_title || chunk.text.slice(0, 100)
-    fetch('/api/slide-context', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ query, chunkId: chunk.chunk_id }),
-    })
-      .then(r => r.json())
-      .then(j => {
-        if (j.success) setSnippets(j.data?.snippets ?? [])
-        else setError(j.error?.message ?? '강의 노트 조회 실패')
+    const timer = setTimeout(() => {
+      setLoading(true)
+      setError('')
+      setSnippets([])
+      const query = chunk.page_title || chunk.text.slice(0, 100)
+      fetch('/api/slide-context', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ query, chunkId: chunk.chunk_id }),
       })
-      .catch(() => setError('네트워크 오류'))
-      .finally(() => setLoading(false))
+        .then(r => r.json())
+        .then(j => {
+          if (j.success) setSnippets(j.data?.snippets ?? [])
+          else setError(j.error?.message ?? '강의 노트 조회 실패')
+        })
+        .catch(() => setError('네트워크 오류'))
+        .finally(() => setLoading(false))
+    }, 500)
+    return () => clearTimeout(timer)
   }, [chunk?.chunk_id])
 
   if (!chunk) {

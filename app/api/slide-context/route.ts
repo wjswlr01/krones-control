@@ -1,10 +1,11 @@
+export const maxDuration = 60
 // app/api/slide-context/route.ts
 // 슬라이드 제목/텍스트로 Dify Knowledge Base 검색 → 관련 강의 단락 반환
 import { NextRequest, NextResponse } from 'next/server'
 
 const DIFY_URL = process.env.NEXT_PUBLIC_DIFY_API_URL ?? 'https://api.dify.ai/v1'
 const DIFY_KEY = process.env.DIFY_API_KEY ?? ''
-const TIMEOUT  = 8_000
+const TIMEOUT  = 50_000
 
 export async function POST(req: NextRequest) {
   const { query } = await req.json().catch(() => ({ query: '' }))

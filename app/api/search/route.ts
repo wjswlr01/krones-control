@@ -1,3 +1,4 @@
+export const maxDuration = 60
 // app/api/search/route.ts
 // 통합 검색: 로컬 PPTX 청크 + Dify 강의 RAG 동시 조회
 import { NextRequest, NextResponse } from 'next/server'
@@ -5,7 +6,7 @@ import { searchChunksLocal } from '@/lib/chunks'
 
 const DIFY_URL = process.env.NEXT_PUBLIC_DIFY_API_URL ?? 'https://api.dify.ai/v1'
 const DIFY_KEY = process.env.DIFY_API_KEY ?? ''
-const TIMEOUT  = 12_000
+const TIMEOUT  = 50_000
 
 async function difySearch(query: string) {
   if (!DIFY_KEY) return { answer: '', docs: [] }
