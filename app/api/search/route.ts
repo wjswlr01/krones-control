@@ -1,35 +1,5 @@
-export const maxDuration = 60
-// app/api/search/route.ts
-// 통합 검색: 로컬 PPTX 청크 + Dify 강의 RAG 동시 조회
 import { NextRequest, NextResponse } from 'next/server'
-import { searchChunksLocal } from '@/lib/chunks'
-
-const DIFY_URL = process.env.NEXT_PUBLIC_DIFY_API_URL ?? 'https://api.dify.ai/v1'
-const DIFY_KEY = process.env.DIFY_API_KEY ?? ''
-const TIMEOUT  = 50_000
-
-async function difySearch(query: string) {
-  if (!DIFY_KEY) return { answer: '', docs: [] }
-  const controller = new AbortController()
-  const tid = setTimeout(() => controller.abort(), TIMEOUT)
-  try {
-    const res = await fetch(`${DIFY_URL}/chat-messages`, {
-      method: 'POST', signal: controller.signal,
-      headers: { 'Authorization': `Bearer ${DIFY_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inputs: {}, query, response_mode: 'blocking', user: 'krones-control' }),
-    })
-    clearTimeout(tid)
-    if (!res.ok) return { answer: '', docs: [] }
-    const data = await res.json()
-    return {
-      answer: String(data.answer ?? ''),
-      docs:   (data?.metadata?.retrieval_model_dict ?? []) as Array<{ score: number; content: string; document: { name: string } }>,
-    }
-  } catch {
-    clearTimeout(tid)
-    return { answer: '', docs: [] }
-  }
-}
+import { searchChunksLocal, isManual, isTranscript } from '@/lib/chunks'
 
 export async function POST(req: NextRequest) {
   const { q } = await req.json().catch(() => ({ q: '' }))
@@ -41,15 +11,9 @@ export async function POST(req: NextRequest) {
   }
 
   const t0 = Date.now()
+  const results = searchChunksLocal(q, 40)
 
-  // 병렬 실행
-  const [difyResult, localChunks] = await Promise.all([
-    difySearch(q),
-    Promise.resolve(searchChunksLocal(q, 30)),
-  ])
-
-  // 매뉴얼 슬라이드 hit 변환
-  const manualHits = localChunks.map(c => ({
+  const manualHits = results.filter(isManual).map(c => ({
     source:     'manual' as const,
     title:      c.page_title || `슬라이드 ${c.slide_number}`,
     snippet:    c.text.slice(0, 200) + (c.text.length > 200 ? '…' : ''),
@@ -60,23 +24,22 @@ export async function POST(req: NextRequest) {
     page_title: c.page_title,
   }))
 
-  // 강의 노트 hit 변환
-  const lectureHits = difyResult.docs.map(d => ({
+  const lectureHits = results.filter(isTranscript).map(c => ({
     source:    'lecture' as const,
-    title:     d.document?.name ?? '강의 녹취',
-    snippet:   d.content.slice(0, 250) + (d.content.length > 250 ? '…' : ''),
-    score:     d.score,
-    file_name: d.document?.name ?? '',
+    title:     c.page_title,
+    snippet:   c.text.slice(0, 250) + (c.text.length > 250 ? '…' : ''),
+    score:     1.0,
+    file_name: c.file_name,
   }))
 
   return NextResponse.json({
     success: true,
     data: {
-      answer:  difyResult.answer,
-      hits:    [...manualHits, ...lectureHits],
+      answer:       '',
+      hits:         [...manualHits, ...lectureHits],
       manualCount:  manualHits.length,
       lectureCount: lectureHits.length,
-      latency: Date.now() - t0,
+      latency:      Date.now() - t0,
     },
   })
 }

@@ -2,17 +2,30 @@
 export type SourceType = 'pptx' | 'transcript'
 export type ContentType = '설비관리' | '설비이론' | '설비세팅' | '트러블슈팅' | '강의' | '현장꿀팁'
 
-export interface SlideChunk {
+export interface ManualChunk {
   chunk_id:        string
   source_type:     'pptx'
   file_name:       string
-  file_id:         string          // manual-01 ~ manual-04
+  file_id:         string
   slide_number:    number
   content_type:    ContentType
   page_title:      string
   text:            string
-  slide_image_url: string          // /slides/manual-01/slide_001.webp
+  slide_image_url: string
 }
+
+export interface TranscriptChunk {
+  chunk_id:    string
+  source_type: 'transcript'
+  file_name:   string
+  file_id:     string
+  chunk_index: number
+  content_type: ContentType
+  page_title:  string
+  text:        string
+}
+
+export type SlideChunk = ManualChunk | TranscriptChunk
 
 export interface ManualMeta {
   id:          string
