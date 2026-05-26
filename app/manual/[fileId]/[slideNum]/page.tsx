@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { notFound, useParams, useRouter } from 'next/navigation'
+import { notFound, useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getManual } from '@/lib/manuals'
 import { getChunk, getChunksByFile } from '@/lib/chunks'
 import SlideContext from '@/components/manual/SlideContext'
@@ -9,23 +9,40 @@ import SlideContext from '@/components/manual/SlideContext'
 export default function SlideViewerPage() {
   const router = useRouter()
   const params = useParams<{ fileId: string; slideNum: string }>()
-  const [isFullscreen, setFullscreen] = useState(false)
+  const searchParams = useSearchParams()
+  const [isFullscreen, setFullscreen] = useState(() => searchParams?.get('fs') === '1')
 
   const manual = getManual(params.fileId)
   const slideNum = parseInt(params.slideNum, 10)
 
+  // URL ↔ fullscreen 상태 동기화
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const has = url.searchParams.get('fs') === '1'
+    if (isFullscreen && !has) {
+      url.searchParams.set('fs', '1')
+      window.history.replaceState({}, '', url.toString())
+    } else if (!isFullscreen && has) {
+      url.searchParams.delete('fs')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [isFullscreen])
+
+  // 키보드 단축키
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (e.key === 'Escape') setFullscreen(false)
       if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey) setFullscreen(prev => !prev)
       if (!manual) return
-      if (e.key === 'ArrowLeft' && slideNum > 1) router.push(`/manual/${manual.id}/${slideNum - 1}`)
-      if (e.key === 'ArrowRight' && slideNum < manual.totalSlides) router.push(`/manual/${manual.id}/${slideNum + 1}`)
+      const suffix = isFullscreen ? '?fs=1' : ''
+      if (e.key === 'ArrowLeft' && slideNum > 1) router.push(`/manual/${manual.id}/${slideNum - 1}${suffix}`)
+      if (e.key === 'ArrowRight' && slideNum < manual.totalSlides) router.push(`/manual/${manual.id}/${slideNum + 1}${suffix}`)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [manual, slideNum, router])
+  }, [manual, slideNum, router, isFullscreen])
 
   if (!manual || isNaN(slideNum)) { notFound(); return null }
 
@@ -34,6 +51,8 @@ export default function SlideViewerPage() {
   const prevSlide = slideNum > 1 ? slideNum - 1 : null
   const nextSlide = slideNum < manual.totalSlides ? slideNum + 1 : null
   const imgSrc = `/slides/${params.fileId}/slide_${String(slideNum).padStart(3, '0')}.webp`
+  const suffix = isFullscreen ? '?fs=1' : ''
+  const buildHref = (n: number) => `/manual/${manual.id}/${n}${suffix}`
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -49,7 +68,7 @@ export default function SlideViewerPage() {
         </div>
         <nav className="py-2">
           {allSlides.map(s => (
-            <Link key={s.slide_number} href={`/manual/${manual.id}/${s.slide_number}`}
+            <Link key={s.slide_number} href={buildHref(s.slide_number)}
               className={`block px-4 py-2 text-[12px] no-underline border-l-2 transition-colors
                 ${s.slide_number === slideNum
                   ? 'bg-bg border-l-primary text-ink font-semibold'
@@ -101,10 +120,10 @@ export default function SlideViewerPage() {
 
           <div className="flex items-center justify-between gap-3 pt-4 border-t border-border">
             {prevSlide ? (
-              <Link href={`/manual/${manual.id}/${prevSlide}`} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg hover:border-primary hover:text-primary no-underline text-[13px] text-body">← 이전 ({prevSlide})</Link>
+              <Link href={buildHref(prevSlide)} className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg hover:border-primary hover:text-primary no-underline text-[13px] text-body">← 이전 ({prevSlide})</Link>
             ) : <span />}
             {nextSlide && (
-              <Link href={`/manual/${manual.id}/${nextSlide}`} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent no-underline text-[13px]">다음 ({nextSlide}) →</Link>
+              <Link href={buildHref(nextSlide)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent no-underline text-[13px]">다음 ({nextSlide}) →</Link>
             )}
           </div>
         </div>
@@ -151,10 +170,10 @@ export default function SlideViewerPage() {
               )}
               <div className="flex items-center justify-between gap-3">
                 {prevSlide ? (
-                  <Link href={`/manual/${manual.id}/${prevSlide}`} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[13px] no-underline">← 이전 ({prevSlide})</Link>
+                  <Link href={buildHref(prevSlide)} className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-[13px] no-underline">← 이전 ({prevSlide})</Link>
                 ) : <span />}
                 {nextSlide && (
-                  <Link href={`/manual/${manual.id}/${nextSlide}`} className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-accent text-white rounded-lg text-[13px] font-semibold no-underline">다음 ({nextSlide}) →</Link>
+                  <Link href={buildHref(nextSlide)} className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-accent text-white rounded-lg text-[13px] font-semibold no-underline">다음 ({nextSlide}) →</Link>
                 )}
               </div>
             </div>
