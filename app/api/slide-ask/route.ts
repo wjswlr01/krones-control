@@ -5,7 +5,6 @@ import { getSummary } from '@/lib/summaries'
 export const maxDuration = 60
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? ''
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 
 export async function POST(req: NextRequest) {
   const { chunkId, question } = await req.json().catch(() => ({}))
@@ -43,20 +42,35 @@ ${question}
 
 답변:`
 
-  try {
-    const res = await fetch(GEMINI_URL + '?key=' + GEMINI_API_KEY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-    })
-    if (!res.ok) {
-      const err = await res.text()
-      return NextResponse.json({ success: false, error: { message: 'Gemini ' + res.status + ': ' + err } }, { status: res.status })
+  const MODELS = ['gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flash-lite']
+  let lastError = 'AI 답변 생성 실패'
+  for (const model of MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+        return NextResponse.json({ success: true, data: { answer, model } })
+      }
+      if (res.status === 429) {
+        lastError = '오늘 무료 AI 사용량을 초과했습니다. 약 1분 후 다시 시도해 주세요.'
+        continue
+      }
+      if (res.status === 404) {
+        // 모델명 변경된 경우 다음 모델로
+        continue
+      }
+      lastError = `AI 응답 오류 (${res.status})`
+      break
+    } catch (e) {
+      lastError = '네트워크 오류'
+      continue
     }
-    const data = await res.json()
-    const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    return NextResponse.json({ success: true, data: { answer } })
-  } catch (err) {
-    return NextResponse.json({ success: false, error: { message: String(err) } }, { status: 500 })
   }
+  return NextResponse.json({ success: false, error: { message: lastError } }, { status: 429 })
 }
