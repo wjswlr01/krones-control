@@ -129,8 +129,8 @@ export default function SlideViewerPage() {
         </div>
       </section>
 
-      <aside className="w-[320px] border-l border-border bg-surface overflow-y-auto flex-shrink-0">
-        <div className="px-4 py-3 border-b border-border sticky top-0 bg-surface z-10">
+      <aside className="w-[320px] border-l border-border bg-surface flex flex-col flex-shrink-0 overflow-hidden">
+        <div className="px-4 py-3 border-b border-border bg-surface flex-shrink-0">
           <h3 className="text-[14px] font-bold text-ink">🎓 관련 강의 노트</h3>
           <p className="text-[11px] text-sub mt-0.5">강사 녹취록 기반</p>
         </div>
@@ -177,8 +177,8 @@ export default function SlideViewerPage() {
                 )}
               </div>
             </div>
-            <aside className="w-[360px] bg-white overflow-y-auto border-l border-border flex-shrink-0">
-              <div className="px-4 py-3 border-b border-border sticky top-0 bg-white z-10">
+            <aside className="w-[360px] bg-white border-l border-border flex flex-col flex-shrink-0 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-white flex-shrink-0">
                 <h3 className="text-[14px] font-bold text-ink">🎓 관련 강의 노트</h3>
                 <p className="text-[11px] text-sub mt-0.5">강사 녹취록 기반</p>
               </div>
