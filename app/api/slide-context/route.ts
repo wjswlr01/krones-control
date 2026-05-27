@@ -4,7 +4,7 @@ import { getSummary } from '@/lib/summaries'
 export async function POST(req: NextRequest) {
   const { chunkId } = await req.json().catch(() => ({ chunkId: '' }))
   if (!chunkId) {
-    return NextResponse.json({ success: true, data: { summary: '', sources: [] } })
+    return NextResponse.json({ success: true, data: { summary: '', sources: [], raw_transcripts: [] } })
   }
   const result = getSummary(chunkId)
   return NextResponse.json({
@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
     data: {
       summary: result?.summary ?? '',
       sources: result?.sources ?? [],
+      raw_transcripts: result?.raw_transcripts ?? [],
     },
   })
 }
