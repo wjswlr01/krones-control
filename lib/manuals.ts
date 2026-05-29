@@ -37,3 +37,4 @@ export const MANUALS: ManualMeta[] = [
 ]
 
 export const getManual = (id: string) => MANUALS.find(m => m.id === id)
+export const getAllManuals = () => MANUALS

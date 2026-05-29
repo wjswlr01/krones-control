@@ -1,78 +1,28 @@
-// app/page.tsx
 import Link from 'next/link'
-import { MANUALS } from '@/lib/manuals'
 
 export default function HomePage() {
   return (
-    <div className="max-w-doc mx-auto px-8 py-10">
-
-      {/* 히어로 */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold text-ink mb-2">Krones 라벨러 매뉴얼 시스템</h1>
-        <p className="text-sub text-base">
-          공식 매뉴얼 152장 + 강의 녹취 9개 파일을 AI 통합 검색으로 조회합니다.
-        </p>
-        <div className="mt-3 flex items-center gap-2 text-[12px] text-faint">
-          <kbd className="px-1.5 py-0.5 font-mono bg-muted border border-border rounded">Ctrl K</kbd>
-          <span>를 누르면 빠르게 검색할 수 있습니다.</span>
+    <div className="flex-1 overflow-y-auto bg-muted">
+      <div className="max-w-5xl mx-auto px-8 py-16">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-ink mb-3">Krones Control</h1>
+          <p className="text-[15px] text-sub">설비 매뉴얼 + 이상발생 사례 통합 플랫폼</p>
+        </div>
+        <div className="grid grid-cols-2 gap-6">
+          <Link href="/manuals" className="block bg-bg border border-border rounded-xl p-8 hover:border-primary hover:shadow-lg transition-all no-underline group">
+            <div className="text-5xl mb-4">📚</div>
+            <h2 className="text-xl font-bold text-ink mb-2 group-hover:text-primary">설비매뉴얼</h2>
+            <p className="text-[13px] text-sub leading-relaxed">Krones 라벨러 정비·운영 매뉴얼과 강사 강의 노트</p>
+            <div className="mt-4 text-[12px] text-primary font-semibold">바로가기 →</div>
+          </Link>
+          <Link href="/incidents" className="block bg-bg border border-border rounded-xl p-8 hover:border-primary hover:shadow-lg transition-all no-underline group">
+            <div className="text-5xl mb-4">📋</div>
+            <h2 className="text-xl font-bold text-ink mb-2 group-hover:text-primary">이상발생보고</h2>
+            <p className="text-[13px] text-sub leading-relaxed">MES 기반 트러블 사례 2,145건 · 공장별 현황 + AI 검색</p>
+            <div className="mt-4 text-[12px] text-primary font-semibold">바로가기 →</div>
+          </Link>
         </div>
       </div>
-
-      {/* 매뉴얼 카드 */}
-      <section className="mb-12">
-        <div className="flex items-baseline justify-between mb-4">
-          <h2 className="text-xl font-bold text-ink">📚 매뉴얼</h2>
-          <span className="text-[12px] text-sub">4종 · 총 152 슬라이드</span>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          {MANUALS.map(m => (
-            <Link key={m.id} href={`/manual/${m.id}/1`}
-              className="bg-bg border border-border rounded-xl p-5 shadow-card hover:shadow-hover hover:border-primary transition-all no-underline group"
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-3xl">{m.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-[16px] font-bold text-ink group-hover:text-primary transition-colors">
-                      {m.title}
-                    </h3>
-                    <span className="text-[11px] font-mono text-sub bg-muted px-1.5 py-0.5 rounded">
-                      {m.totalSlides}장
-                    </span>
-                  </div>
-                  <p className="text-[13px] text-sub">{m.subtitle}</p>
-                  <p className="text-[11px] text-faint mt-2 font-mono">{m.fileName}</p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* 빠른 진입 */}
-      <section>
-        <h2 className="text-xl font-bold text-ink mb-4">⚡ 빠른 진입</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <Link href="/lecture"
-            className="bg-bg border border-border rounded-xl p-5 shadow-card hover:shadow-hover hover:border-primary transition-all no-underline">
-            <div className="text-2xl mb-2">🎓</div>
-            <div className="text-[15px] font-bold text-ink mb-1">강의 노트</div>
-            <div className="text-[12px] text-sub">현장 강의 녹취 9건</div>
-          </Link>
-          <Link href="/maintenance"
-            className="bg-bg border border-border rounded-xl p-5 shadow-card hover:shadow-hover hover:border-primary transition-all no-underline">
-            <div className="text-2xl mb-2">🔧</div>
-            <div className="text-[15px] font-bold text-ink mb-1">설비 관리 기준</div>
-            <div className="text-[12px] text-sub">일일·주간·월간 점검</div>
-          </Link>
-          <Link href="/manual/manual-04/1"
-            className="bg-bg border border-border rounded-xl p-5 shadow-card hover:shadow-hover hover:border-primary transition-all no-underline">
-            <div className="text-2xl mb-2">⚡</div>
-            <div className="text-[15px] font-bold text-ink mb-1">트러블 TOP 10</div>
-            <div className="text-[12px] text-sub">자주 발생하는 알람</div>
-          </Link>
-        </div>
-      </section>
     </div>
   )
 }

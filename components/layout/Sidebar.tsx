@@ -1,71 +1,88 @@
 'use client'
-// components/layout/Sidebar.tsx
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { MANUALS } from '@/lib/manuals'
+import { useState } from 'react'
+import { getAllManuals } from '@/lib/manuals'
 
-interface NavItem { href: string; label: string; icon: string }
-const PRIMARY: NavItem[] = [
-  { href: '/',            label: '홈',         icon: '🏠' },
-  { href: '/lecture',     label: '강의 노트',  icon: '🎓' },
-  { href: '/maintenance', label: '설비 관리',  icon: '🔧' },
-  { href: '/incidents',   label: '이상발생보고서', icon: '📋' },
-]
+interface MenuItem {
+  label: string
+  icon: string
+  href?: string
+  children?: MenuItem[]
+}
+
+function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: MenuItem; level?: number; pathname: string; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const hasChildren = item.children && item.children.length > 0
+  const isActive = item.href ? pathname === item.href : false
+
+  if (hasChildren) {
+    return (
+      <div>
+        <button onClick={() => setOpen(!open)}
+          className={`w-full flex items-center gap-2 py-1.5 pr-3 text-[13px] text-left hover:bg-muted rounded transition-colors ${level === 0 ? 'font-semibold text-ink' : 'text-body'}`}
+          style={{ paddingLeft: `${0.75 + level * 0.75}rem` }}>
+          <span className="text-[10px] text-faint w-3">{open ? '▼' : '▶'}</span>
+          <span className="text-sm">{item.icon}</span>
+          <span className="flex-1">{item.label}</span>
+        </button>
+        {open && item.children!.map((c, i) => <TreeItem key={i} item={c} level={level + 1} pathname={pathname} />)}
+      </div>
+    )
+  }
+
+  return (
+    <Link href={item.href!}
+      className={`flex items-center gap-2 py-1.5 pr-3 text-[13px] no-underline rounded transition-colors ${isActive ? 'bg-primary/10 text-primary font-semibold' : 'text-body hover:bg-muted'}`}
+      style={{ paddingLeft: `${0.75 + level * 0.75 + (level > 0 ? 0.7 : 0)}rem` }}>
+      <span className="text-sm">{item.icon}</span>
+      <span className="flex-1 truncate">{item.label}</span>
+    </Link>
+  )
+}
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href)
+  const manuals = getAllManuals()
+
+  const menu: MenuItem[] = [
+    { label: '홈', icon: '🏠', href: '/' },
+    {
+      label: '설비매뉴얼', icon: '📚',
+      children: [
+        {
+          label: 'Krones Contiroll HS', icon: '🏭',
+          children: manuals.map(m => ({
+            label: m.title, icon: '📄', href: `/manual/${m.id}/1`,
+          }))
+        }
+      ]
+    },
+    {
+      label: '이상발생보고', icon: '📋',
+      children: [
+        { label: '공장별 현황', icon: '📊', href: '/incidents/by-factory' },
+        { label: 'AI 사례검색', icon: '🤖', href: '/incidents/ai-search' },
+        { label: '전체 목록', icon: '📑', href: '/incidents/list' },
+      ]
+    }
+  ]
 
   return (
-    <aside className="w-[260px] bg-surface border-r border-border flex flex-col flex-shrink-0 overflow-y-auto">
-      {/* 로고 */}
-      <div className="px-5 py-4 border-b border-border">
+    <aside className="w-[260px] border-r border-border bg-surface flex flex-col flex-shrink-0 overflow-hidden">
+      <div className="px-4 py-4 border-b border-border">
         <Link href="/" className="flex items-center gap-2 no-underline">
-          <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center font-bold text-sm">K</div>
+          <div className="w-8 h-8 rounded bg-primary text-white flex items-center justify-center font-bold text-sm">K</div>
           <div>
-            <div className="text-[15px] font-bold text-ink leading-tight">Krones Control</div>
+            <div className="text-[14px] font-bold text-ink">Krones Control</div>
             <div className="text-[10px] text-sub">기술혁신팀 · 라벨러</div>
           </div>
         </Link>
       </div>
-
-      {/* 주 메뉴 */}
-      <nav className="px-3 py-3">
-        <div className="px-2 mb-1 text-[10px] uppercase font-semibold text-faint tracking-wider">메뉴</div>
-        {PRIMARY.map(item => (
-          <Link key={item.href} href={item.href}
-            className={`flex items-center gap-2 px-2 py-2 rounded-md text-[14px] no-underline transition-colors mb-0.5
-              ${isActive(item.href) ? 'bg-white text-ink font-semibold shadow-card' : 'text-body hover:bg-white hover:text-ink'}`}
-          >
-            <span className="text-base">{item.icon}</span>
-            {item.label}
-          </Link>
-        ))}
+      <nav className="flex-1 overflow-y-auto py-3 space-y-0.5 px-2">
+        {menu.map((item, i) => <TreeItem key={i} item={item} pathname={pathname} />)}
       </nav>
-
-      {/* 매뉴얼 목록 */}
-      <nav className="px-3 py-3 border-t border-border">
-        <div className="px-2 mb-1 text-[10px] uppercase font-semibold text-faint tracking-wider">매뉴얼</div>
-        {MANUALS.map(m => (
-          <Link key={m.id} href={`/manual/${m.id}/1`}
-            className={`flex items-center gap-2 px-2 py-2 rounded-md text-[13px] no-underline transition-colors mb-0.5
-              ${pathname.startsWith(`/manual/${m.id}`) ? 'bg-white text-ink font-semibold shadow-card' : 'text-body hover:bg-white hover:text-ink'}`}
-          >
-            <span>{m.icon}</span>
-            <span className="flex-1 truncate">{m.title}</span>
-            <span className="text-[10px] text-faint font-mono">{m.totalSlides}</span>
-          </Link>
-        ))}
-      </nav>
-
-      <div className="flex-1" />
-
-      {/* 푸터 */}
-      <div className="px-5 py-3 border-t border-border text-[10px] text-faint">
-        <div>롯데칠성 · 기술혁신팀</div>
-        <div className="font-mono mt-0.5">v0.1.0</div>
-      </div>
+      <div className="px-4 py-3 border-t border-border text-[10px] text-faint">롯데칠성 · 기술혁신팀<br />v0.2.0</div>
     </aside>
   )
 }
