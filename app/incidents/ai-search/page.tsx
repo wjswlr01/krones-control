@@ -27,83 +27,100 @@ export default function AiSearchPage() {
     setLoading(false)
   }
 
-  const examples = ['글루 롤러에 라벨이 자꾸 말려요', '슬리브 라벨러 커터가 잘 안 잘려요', '라벨 끊김 에러 어떻게 조치하나요?', '필름 라벨러 핀트 불량 원인']
+  const examples = [
+    '글루 롤러에 라벨이 자꾸 말려요',
+    'Krones 라벨러 커터 나이프 교체 주기와 마모 확인 방법',
+    'E-Stop 발생 후 초기화 시 센서 오작동 대처 방안',
+    '특정 롯트의 페트병에서만 라벨 찌그러짐 현상',
+  ]
 
   return (
-    <div className="flex-1 overflow-y-auto bg-muted">
-      <div className="max-w-reading mx-auto px-8 py-8">
-        <div className="flex items-center gap-2 text-[12px] text-sub mb-4">
-          <Link href="/" className="hover:text-ink no-underline">홈</Link>
-          <span className="text-faint">›</span>
-          <Link href="/incidents" className="hover:text-ink no-underline">이상발생보고</Link>
-          <span className="text-faint">›</span>
-          <span className="text-ink font-semibold">AI 사례검색</span>
-        </div>
-        <h1 className="text-2xl font-bold text-ink mb-2">🤖 AI 사례검색</h1>
-        <p className="text-[13px] text-sub mb-6">라벨러 관련 트러블 사례 294건에서 AI가 답을 찾아드립니다.</p>
+    <div className="flex-1 overflow-y-auto bg-background">
+      <div className="max-w-[1200px] mx-auto px-8 py-8">
+        <nav className="flex items-center gap-2 text-[13px] text-secondary mb-6">
+          <Link href="/" className="hover:text-primary no-underline">홈</Link>
+          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+          <Link href="/incidents" className="hover:text-primary no-underline">이상발생보고</Link>
+          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+          <span className="text-on-background font-semibold">AI 사례검색</span>
+        </nav>
+        <h1 className="font-headline text-[28px] font-bold text-on-background mb-2 flex items-center gap-3">🤖 AI 사례검색</h1>
+        <p className="text-[14px] text-secondary mb-8">라벨러 관련 트러블 사례 294건에서 AI가 답을 찾아드립니다.</p>
 
-        <div className="bg-bg border border-border rounded-lg p-4 mb-6 shadow-card">
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm mb-8 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
           <textarea value={question} onChange={e => setQuestion(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); search() } }}
             placeholder="예: 라벨러 글루 롤러에 라벨이 말려서 에러나는데 어떻게 해야 하나요?"
-            rows={3} disabled={loading}
-            className="w-full px-3 py-2 text-[13px] outline-none bg-transparent resize-none disabled:opacity-50" />
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
-            <span className="text-[11px] text-faint">Enter로 검색 · Shift+Enter로 줄바꿈</span>
+            disabled={loading}
+            className="w-full bg-transparent border-none focus:ring-0 text-[14px] text-on-background placeholder:text-outline resize-none min-h-[100px] outline-none" />
+          <div className="flex items-center justify-between border-t border-outline-variant pt-3 mt-2">
+            <div className="flex items-center gap-2 text-secondary">
+              <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
+              <span className="text-[12px]">Enter로 검색 · Shift+Enter로 줄바꿈</span>
+            </div>
             <button onClick={() => search()} disabled={loading || !question.trim()}
-              className="px-4 py-1.5 bg-primary text-white text-[12px] font-semibold rounded disabled:opacity-50 hover:bg-accent">
-              {loading ? '검색 중...' : '🤖 AI 검색'}
+              className="bg-primary text-on-primary px-5 py-2 rounded-lg text-[13px] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+              {loading ? '검색 중...' : <>🤖 AI 검색</>}
             </button>
           </div>
         </div>
 
         {!answer && !loading && (
-          <div className="bg-bg border border-border rounded-lg p-4 mb-6">
-            <div className="text-[11px] uppercase font-semibold text-faint tracking-wider mb-2">예시 질문</div>
-            <div className="space-y-1.5">
+          <div className="mb-8">
+            <h3 className="text-[12px] font-semibold text-secondary mb-3 uppercase tracking-wider">추천 질문</h3>
+            <div className="grid grid-cols-2 gap-3">
               {examples.map(ex => (
-                <button key={ex} onClick={() => { setQuestion(ex); search(ex) }} className="block text-left text-[12px] text-primary hover:underline">· {ex}</button>
+                <button key={ex} onClick={() => { setQuestion(ex); search(ex) }}
+                  className="text-left bg-surface-container-low border border-outline-variant rounded-lg p-4 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group">
+                  <p className="text-[13px] text-on-background group-hover:text-primary transition-colors">"{ex}"</p>
+                </button>
               ))}
             </div>
           </div>
         )}
 
-        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-[12px] text-red-700">⚠️ {error}</div>}
+        {error && (
+          <div className="bg-error-container border border-error/20 rounded-lg p-4 mb-6 text-[13px] text-on-error-container flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">error</span>{error}
+          </div>
+        )}
 
         {loading && (
-          <div className="bg-bg border border-border rounded-lg p-6 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-[13px] text-body">유사 사례 검색 + AI 답변 생성 중...</span>
-            </div>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 mb-6 flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-[13px] text-secondary">유사 사례 검색 + AI 답변 생성 중...</span>
           </div>
         )}
 
         {answer && (
-          <div className="bg-bg border border-tip/40 rounded-lg p-5 mb-6">
-            <h2 className="text-[13px] font-bold text-tip mb-3">🤖 AI 답변</h2>
-            <div className="text-[13px] text-body leading-relaxed whitespace-pre-wrap doc-prose">{answer}</div>
+          <div className="bg-tertiary-fixed/40 border-l-4 border-tertiary-container rounded-r-xl p-6 mb-8 shadow-sm">
+            <h2 className="font-headline text-[18px] font-bold text-on-tertiary-container mb-3 flex items-center gap-2">🤖 AI 답변</h2>
+            <div className="text-[14px] text-on-surface-variant leading-relaxed whitespace-pre-wrap">{answer}</div>
           </div>
         )}
 
         {similar.length > 0 && (
           <div>
-            <h2 className="text-[13px] font-bold text-ink mb-3">📑 참고한 유사 사례 ({similar.length}건)</h2>
-            <div className="space-y-2">
+            <h2 className="font-headline text-[18px] font-bold text-on-background mb-4 flex items-center gap-2">
+              📑 참고한 유사 사례
+              <span className="text-[12px] font-semibold text-secondary bg-surface-container px-2 py-0.5 rounded-full">{similar.length}건</span>
+            </h2>
+            <div className="space-y-3">
               {similar.map(c => (
-                <Link key={c.id} href={`/incidents/${c.id}`} className="block bg-bg border border-border rounded-lg p-4 hover:border-primary transition-all no-underline">
-                  <div className="flex items-start justify-between gap-3 mb-1">
-                    <h3 className="text-[13px] font-semibold text-ink flex-1">{c.title}</h3>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {c.is_best_practice && <span className="text-[10px] font-bold px-1.5 py-0.5 bg-tip/15 text-tip rounded">⭐</span>}
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 bg-primary/15 text-primary rounded">유사도 {Math.round(c.similarity * 100)}%</span>
+                <Link key={c.id} href={`/incidents/${c.id}`}
+                  className="block bg-surface-container-lowest border border-outline-variant rounded-lg p-5 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all no-underline">
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <h3 className="text-[14px] font-bold text-on-background flex-1">{c.title}</h3>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {c.is_best_practice && <span className="bg-tertiary-container/15 text-tertiary-container text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">star</span>모범사례</span>}
+                      <span className="bg-primary-container/15 text-primary text-[11px] font-semibold px-2 py-0.5 rounded">유사도 {Math.round(c.similarity * 100)}%</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-sub flex-wrap">
-                    <span className="font-mono">{c.id}</span>
-                    <span>·</span><span>{c.factory}</span>
-                    {c.equipment && <><span>·</span><span className="font-semibold">{c.equipment}</span></>}
-                    <span>·</span><span className="font-mono">{c.downtime_min}분</span>
+                  <div className="flex flex-wrap gap-4 text-[12px] text-secondary">
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">tag</span>{c.id}</span>
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">factory</span>{c.factory}</span>
+                    {c.equipment && <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">precision_manufacturing</span>{c.equipment}</span>}
+                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">timer</span>{c.downtime_min}분</span>
                   </div>
                 </Link>
               ))}
