@@ -6,9 +6,14 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
 
 @layer base {
-  html { -webkit-text-size-adjust: 100%; }
+  html {
+    -webkit-text-size-adjust: 100%;
+    min-height: 100vh;
+    background-color: #f9f9ff;
+  }
   body {
-    background: #FFFFFF;
+    background-color: #f9f9ff;
+    min-height: 100vh;
     color: #111827;
     font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
