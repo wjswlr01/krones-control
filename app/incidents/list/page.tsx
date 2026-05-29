@@ -1,11 +1,22 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { searchIncidents, getFactoryList, getStats, type IncidentFilters } from '@/lib/incidents'
 
-export default function IncidentsListPage() {
+function IncidentsListContent() {
+  const searchParams = useSearchParams()
+  const initFactory = searchParams?.get('factory') || undefined
+  const initType = searchParams?.get('type') || undefined
+  const initEquipment = searchParams?.get('equipment') || undefined
+
   const [query, setQuery] = useState('')
-  const [filters, setFilters] = useState<IncidentFilters>({ labeler_only: true })
+  const [filters, setFilters] = useState<IncidentFilters>({
+    labeler_only: !initFactory && !initType && !initEquipment,
+    factory: initFactory,
+    workplace_type: initType,
+    equipment: initEquipment,
+  })
   const factories = useMemo(() => getFactoryList(), [])
   const stats = useMemo(() => getStats(), [])
   const results = useMemo(() => searchIncidents(query, filters, 200), [query, filters])
@@ -75,6 +86,24 @@ export default function IncidentsListPage() {
               className="w-full px-4 py-3 bg-bg border border-border rounded-lg text-[13px] outline-none focus:border-primary shadow-card" />
           </div>
 
+          {(filters.equipment || filters.workplace_type) && (
+            <div className="flex items-center gap-2 mb-3 text-[11px]">
+              <span className="text-faint">적용된 필터:</span>
+              {filters.workplace_type && (
+                <button onClick={() => setFilters(prev => ({ ...prev, workplace_type: undefined }))}
+                  className="px-2 py-0.5 bg-primary/10 text-primary rounded hover:bg-primary/20">
+                  유형: {filters.workplace_type} ✕
+                </button>
+              )}
+              {filters.equipment && (
+                <button onClick={() => setFilters(prev => ({ ...prev, equipment: undefined }))}
+                  className="px-2 py-0.5 bg-primary/10 text-primary rounded hover:bg-primary/20">
+                  설비: {filters.equipment} ✕
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             {results.length === 0 ? (
               <div className="text-center py-12 text-faint text-[13px]">검색 결과가 없습니다.</div>
@@ -103,5 +132,13 @@ export default function IncidentsListPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+export default function IncidentsListPage() {
+  return (
+    <Suspense fallback={<div className="flex-1 bg-muted" />}>
+      <IncidentsListContent />
+    </Suspense>
   )
 }

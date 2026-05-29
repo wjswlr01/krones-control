@@ -33,6 +33,7 @@ export function getIncidentById(id: string): Incident | undefined {
 export interface IncidentFilters {
   factory?: string
   workplace_type?: string
+  equipment?: string
   is_best_practice?: boolean
   is_long_downtime?: boolean
   labeler_only?: boolean
@@ -42,6 +43,7 @@ export function searchIncidents(query: string, filters: IncidentFilters = {}, li
   let results = INCIDENTS
   if (filters.factory) results = results.filter(i => i.factory === filters.factory)
   if (filters.workplace_type) results = results.filter(i => i.workplace_type === filters.workplace_type)
+  if (filters.equipment) results = results.filter(i => i.equipment === filters.equipment)
   if (filters.is_best_practice) results = results.filter(i => i.is_best_practice)
   if (filters.is_long_downtime) results = results.filter(i => i.is_long_downtime)
   if (filters.labeler_only) {
