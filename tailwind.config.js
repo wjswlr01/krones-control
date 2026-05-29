@@ -7,24 +7,54 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Surface
+        // Legacy (기존 페이지 유지)
         bg:      '#FFFFFF',
-        surface: '#F8F9FA',
         muted:   '#F3F4F6',
         border:  '#E5E7EB',
-        // Text
         ink:     '#111827',
         body:    '#374151',
         sub:     '#6B7280',
         faint:   '#9CA3AF',
-        // Brand
-        primary: '#0EA5E9',  // Sky blue
         accent:  '#2563EB',
-        // Semantic
         tip:     '#F59E0B',  // Amber - 강사 꿀팁
         success: '#10B981',
         danger:  '#EF4444',
         info:    '#3B82F6',
+        // Material Design 3 (Stitch)
+        background: '#f9f9ff',
+        surface: '#f9f9ff',
+        'surface-container-lowest': '#ffffff',
+        'surface-container-low': '#f1f3ff',
+        'surface-container': '#e9edff',
+        'surface-container-high': '#e1e8fd',
+        'surface-container-highest': '#dce2f7',
+        'surface-variant': '#dce2f7',
+        'on-background': '#141b2b',
+        'on-surface': '#141b2b',
+        'on-surface-variant': '#3e4850',
+        primary: '#006591',
+        'primary-container': '#0EA5E9',
+        'on-primary': '#ffffff',
+        'on-primary-container': '#003751',
+        'primary-fixed': '#c9e6ff',
+        'primary-fixed-dim': '#89ceff',
+        secondary: '#5c5f60',
+        'on-secondary-container': '#626566',
+        tertiary: '#855300',
+        'tertiary-container': '#d88a00',
+        'tertiary-fixed': '#ffddb8',
+        'tertiary-fixed-dim': '#ffb95f',
+        'on-tertiary': '#ffffff',
+        'on-tertiary-container': '#4a2c00',
+        'on-tertiary-fixed': '#2a1700',
+        outline: '#6e7881',
+        'outline-variant': '#bec8d2',
+        'inverse-surface': '#293040',
+        'inverse-on-surface': '#edf0ff',
+        'inverse-primary': '#89ceff',
+        error: '#ba1a1a',
+        'error-container': '#ffdad6',
+        'on-error-container': '#93000a',
       },
       fontFamily: {
         sans: [
@@ -34,6 +64,8 @@ module.exports = {
           'sans-serif',
         ],
         mono: ['JetBrains Mono', 'Menlo', 'Courier New', 'monospace'],
+        headline: ['Hanken Grotesk', 'Pretendard Variable', 'system-ui', 'sans-serif'],
+        body: ['Inter', 'Pretendard Variable', 'system-ui', 'sans-serif'],
       },
       maxWidth: {
         'reading': '780px',  // GitBook 본문 폭
