@@ -9,6 +9,7 @@ const PRIMARY: NavItem[] = [
   { href: '/',            label: '홈',         icon: '🏠' },
   { href: '/lecture',     label: '강의 노트',  icon: '🎓' },
   { href: '/maintenance', label: '설비 관리',  icon: '🔧' },
+  { href: '/incidents',   label: '이상발생보고서', icon: '📋' },
 ]
 
 export default function Sidebar() {
