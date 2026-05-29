@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 interface SimilarCase { id: string; title: string; factory: string; equipment: string; downtime_min: number; similarity: number; is_best_practice: boolean }
@@ -11,6 +11,18 @@ export default function AiSearchPage() {
   const [similar, setSimilar] = useState<SimilarCase[]>([])
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem('ai-search-result')
+      if (cached) {
+        const data = JSON.parse(cached)
+        if (data.question) setQuestion(data.question)
+        if (data.answer) setAnswer(data.answer)
+        if (data.similar) setSimilar(data.similar)
+      }
+    } catch {}
+  }, [])
+
   const search = async (q?: string) => {
     const query = (q ?? question).trim()
     if (!query || loading) return
@@ -21,7 +33,17 @@ export default function AiSearchPage() {
         body: JSON.stringify({ question: query })
       })
       const json = await res.json()
-      if (json.success) { setAnswer(json.data.answer); setSimilar(json.data.similar) }
+      if (json.success) {
+        setAnswer(json.data.answer)
+        setSimilar(json.data.similar)
+        try {
+          sessionStorage.setItem('ai-search-result', JSON.stringify({
+            question: query,
+            answer: json.data.answer,
+            similar: json.data.similar,
+          }))
+        } catch {}
+      }
       else setError(json.error?.message ?? '검색 실패')
     } catch { setError('네트워크 오류') }
     setLoading(false)
@@ -94,7 +116,17 @@ export default function AiSearchPage() {
 
         {answer && (
           <div className="bg-tertiary-fixed/40 border-l-4 border-tertiary-container rounded-r-xl p-6 mb-8 shadow-sm">
-            <h2 className="font-headline text-[18px] font-bold text-on-tertiary-container mb-3 flex items-center gap-2">🤖 AI 답변</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-headline text-[18px] font-bold text-on-tertiary-container flex items-center gap-2">🤖 AI 답변</h2>
+              <button
+                onClick={() => {
+                  setQuestion(''); setAnswer(''); setSimilar([])
+                  try { sessionStorage.removeItem('ai-search-result') } catch {}
+                }}
+                className="text-[12px] text-secondary hover:text-primary transition-colors flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px]">refresh</span>새 검색
+              </button>
+            </div>
             <div className="text-[14px] text-on-surface-variant leading-relaxed whitespace-pre-wrap">{answer}</div>
           </div>
         )}
