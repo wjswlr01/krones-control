@@ -9,10 +9,11 @@ function IncidentsListContent() {
   const initFactory = searchParams?.get('factory') || undefined
   const initType = searchParams?.get('type') || undefined
   const initEquipment = searchParams?.get('equipment') || undefined
+  const initQuery = searchParams?.get('q') || ''
 
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initQuery)
   const [filters, setFilters] = useState<IncidentFilters>({
-    labeler_only: !initFactory && !initType && !initEquipment,
+    labeler_only: !initFactory && !initType && !initEquipment && !initQuery,
     factory: initFactory,
     workplace_type: initType,
     equipment: initEquipment,
