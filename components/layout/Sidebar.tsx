@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { getAllManuals } from '@/lib/manuals'
+import { useSidebar } from '@/contexts/SidebarContext'
 
 interface MenuItem {
   label: string
@@ -45,6 +46,7 @@ function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: Men
 export default function Sidebar() {
   const pathname = usePathname()
   const manuals = getAllManuals()
+  const { isOpen, close } = useSidebar()
 
   if (pathname === '/login') return null
 
@@ -70,7 +72,10 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="w-[260px] border-r border-outline-variant bg-surface-container-low flex flex-col flex-shrink-0 overflow-hidden">
+    <>
+      {/* 모바일 백드롭 */}
+      {isOpen && <div onClick={close} className="md:hidden fixed inset-0 z-40 bg-black/40" aria-hidden />}
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-[260px] border-r border-outline-variant bg-surface-container-low flex flex-col flex-shrink-0 overflow-hidden transform transition-transform duration-200 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <Link href="/" className="px-4 py-5 border-b border-outline-variant/50 flex items-center gap-3 no-underline hover:bg-surface-container-high/50 transition-colors">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
           <span className="material-symbols-outlined text-primary text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>precision_manufacturing</span>
@@ -88,5 +93,6 @@ export default function Sidebar() {
         <span className="text-[10px] tracking-wider">롯데칠성 · 기술혁신팀 / v0.2.0</span>
       </div>
     </aside>
+    </>
   )
 }
