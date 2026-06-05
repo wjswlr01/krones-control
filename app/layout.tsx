@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
+import BottomNav from '@/components/layout/BottomNav'
 
 export const metadata: Metadata = {
   title:       'Krones Control · 라벨러 매뉴얼 시스템',
@@ -24,11 +25,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Sidebar />
           <div className="flex-1 flex flex-col overflow-hidden">
             <TopBar />
-            <main className="flex-1 overflow-y-auto bg-background">
+            <main className="flex-1 overflow-y-auto bg-background pb-16 md:pb-0">
               {children}
             </main>
           </div>
         </div>
+        <BottomNav />
       </body>
     </html>
   )

@@ -123,18 +123,6 @@ export default function OnboardingModal() {
           </div>
         </div>
       )}
-
-      {/* 홈 우측 하단 "사용 안내 다시 보기" 버튼 */}
-      <button
-        onClick={() => window.dispatchEvent(new Event('restart-onboarding'))}
-        aria-label="사용 안내 다시 보기"
-        className="group fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-primary text-white shadow-lg hover:bg-primary/90 hover:scale-105 transition-all flex items-center justify-center"
-      >
-        <span className="material-symbols-outlined text-[24px]">help</span>
-        <span className="absolute right-full mr-3 px-2.5 py-1.5 rounded-lg bg-on-background text-surface text-[12px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          사용 안내 다시 보기
-        </span>
-      </button>
     </>
   )
 }
