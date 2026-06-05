@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import type { ManualChunk } from '@/lib/types'
+import AnswerMarkdown from '@/components/AnswerMarkdown'
 
 interface RawTranscript { file_name: string; text: string; similarity: number; chunk_id: string }
 interface Message { role: 'user' | 'assistant'; text: string }
@@ -130,7 +131,9 @@ export default function SlideContext({ chunk }: Props) {
                     <span className="material-symbols-outlined text-[12px]">{m.role === 'user' ? 'person' : 'smart_toy'}</span>
                     {m.role === 'user' ? '질문' : '답변'}
                   </div>
-                  <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>
+                  {m.role === 'assistant'
+                    ? <div className="leading-relaxed"><AnswerMarkdown>{m.text}</AnswerMarkdown></div>
+                    : <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>}
                 </div>
               </div>
             ))}

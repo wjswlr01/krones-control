@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import AnswerMarkdown from '@/components/AnswerMarkdown'
 
 interface SimilarCase { id: string; title: string; factory: string; equipment: string; downtime_min: number; similarity: number; is_best_practice: boolean }
 
@@ -127,7 +128,9 @@ export default function AiSearchPage() {
                 <span className="material-symbols-outlined text-[14px]">refresh</span>새 검색
               </button>
             </div>
-            <div className="text-[14px] text-on-surface-variant leading-relaxed whitespace-pre-wrap">{answer}</div>
+            <div className="text-[14px] text-on-surface-variant leading-relaxed">
+              <AnswerMarkdown>{answer}</AnswerMarkdown>
+            </div>
           </div>
         )}
 
