@@ -9,6 +9,7 @@ interface MenuItem {
   icon: string  // Material Symbol name
   href?: string
   children?: MenuItem[]
+  tourId?: string  // 온보딩 투어 타겟용 data-tour 값
 }
 
 function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: MenuItem; level?: number; pathname: string; defaultOpen?: boolean }) {
@@ -19,7 +20,7 @@ function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: Men
   if (hasChildren) {
     return (
       <div>
-        <button onClick={() => setOpen(!open)}
+        <button onClick={() => setOpen(!open)} data-tour={item.tourId}
           className={`w-full flex items-center gap-3 py-2.5 pr-3 text-left hover:bg-surface-container-high rounded-lg transition-colors ${level === 0 ? 'font-bold text-on-background' : 'text-secondary'}`}
           style={{ paddingLeft: `${0.75 + level * 0.5}rem` }}>
           <span className="material-symbols-outlined text-[18px] text-secondary flex-shrink-0" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }}>expand_more</span>
@@ -32,7 +33,7 @@ function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: Men
   }
 
   return (
-    <Link href={item.href!}
+    <Link href={item.href!} data-tour={item.tourId}
       className={`flex items-center gap-3 py-2.5 pr-3 no-underline rounded-lg transition-colors ${isActive ? 'bg-primary-container/15 text-primary font-bold border-l-4 border-primary' : 'text-secondary hover:bg-surface-container-high border-l-4 border-transparent'}`}
       style={{ paddingLeft: `${isActive ? 0.75 + level * 0.5 - 0.25 : 0.75 + level * 0.5}rem` }}>
       <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>{item.icon}</span>
@@ -50,7 +51,7 @@ export default function Sidebar() {
   const menu: MenuItem[] = [
     { label: '홈', icon: 'home', href: '/' },
     {
-      label: '설비매뉴얼', icon: 'menu_book',
+      label: '설비매뉴얼', icon: 'menu_book', tourId: 'manuals',
       children: [
         {
           label: 'Krones Contiroll HS', icon: 'factory',
@@ -61,8 +62,8 @@ export default function Sidebar() {
     {
       label: '이상발생보고', icon: 'report_problem',
       children: [
-        { label: '공장별 현황', icon: 'bar_chart', href: '/incidents/by-factory' },
-        { label: 'AI 사례검색', icon: 'smart_toy', href: '/incidents/ai-search' },
+        { label: '공장별 현황', icon: 'bar_chart', href: '/incidents/by-factory', tourId: 'by-factory' },
+        { label: 'AI 사례검색', icon: 'smart_toy', href: '/incidents/ai-search', tourId: 'ai-search' },
         { label: '전체 목록', icon: 'list_alt', href: '/incidents/list' },
       ]
     }

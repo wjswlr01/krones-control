@@ -42,7 +42,7 @@ export default function TopBar() {
   return (
     <header className="bg-surface border-b border-outline-variant flex items-center h-16 px-6 flex-shrink-0 sticky top-0 z-30">
       <form onSubmit={handleSubmit} className="flex-1 max-w-3xl mx-auto">
-        <div className="relative">
+        <div className="relative" data-tour="search">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary text-[20px] pointer-events-none">search</span>
           <input
             ref={inputRef}
