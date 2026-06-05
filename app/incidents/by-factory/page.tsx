@@ -23,24 +23,24 @@ export default function ByFactoryPage() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
-      <div className="max-w-[1200px] mx-auto px-8 py-8">
-        <nav className="flex items-center gap-2 text-[13px] text-secondary mb-6">
+      <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-6 md:py-8">
+        <nav className="hidden md:flex items-center gap-2 text-[13px] text-secondary mb-6">
           <Link href="/" className="hover:text-primary no-underline">홈</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
           <Link href="/incidents" className="hover:text-primary no-underline">이상발생보고</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
           <span className="text-on-background font-semibold">공장별 현황</span>
         </nav>
-        <h1 className="font-headline text-[28px] font-bold text-on-background mb-8 flex items-center gap-3">📊 공장별 현황</h1>
+        <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-6 md:mb-8 flex items-center gap-3">📊 공장별 현황</h1>
 
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
           <StatCard label="전체 보고서" value={total.toLocaleString()} />
           <StatCard label="모범사례" value={bestPractice.toString()} badge={`${Math.round(bestPractice*100/total)}%`} badgeColor="tertiary" />
-          <StatCard label="긴 다운타임" value={longDowntime.toString()} badge="60분+" badgeColor="primary" />
+          <StatCard label="긴 다운타임" value={longDowntime.toString()} badge="60분+" badgeColor="primary" valueColor="error" />
           <StatCard label="평균 다운타임" value={avgDowntime.toString()} unit="분" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <ChartCard title="🏭 공장별 발생 건수">
             {factories.slice(0, 5).map(([label, count], i) => (
               <BarRow key={label} label={label} count={count} max={factories[0][1]} href={`/incidents/list?factory=${encodeURIComponent(label)}`} dim={i / 5} />
@@ -52,8 +52,8 @@ export default function ByFactoryPage() {
               {equipments.map(([label, count], i) => (
                 <Link key={label} href={`/incidents/list?equipment=${encodeURIComponent(label)}`}
                   className={`flex items-center justify-between pb-3 ${i < 4 ? 'border-b border-surface-variant' : ''} no-underline hover:bg-surface-container-low rounded px-2 -mx-2 py-1 transition-colors`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold ${i < 3 ? 'bg-surface-container-high text-secondary' : 'bg-surface-container text-secondary/70'}`}>{i+1}</div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 ${i === 0 ? 'bg-primary-container text-white' : i < 3 ? 'bg-surface-container-high text-secondary' : 'bg-surface-container text-secondary/70'}`}>{i+1}</div>
                     <span className="text-[14px] text-on-background truncate">{label}</span>
                   </div>
                   <span className={`text-[14px] font-semibold flex-shrink-0 ${i === 0 ? 'text-primary' : 'text-on-surface-variant'}`}>{count}건</span>
@@ -63,7 +63,7 @@ export default function ByFactoryPage() {
           </ChartCard>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ChartCard title="🏷 작업장 유형">
             {types.slice(0, 4).map(([label, count], i) => {
               const pct = Math.round(count * 100 / total)
@@ -92,12 +92,12 @@ export default function ByFactoryPage() {
   )
 }
 
-function StatCard({ label, value, unit, badge, badgeColor }: { label: string; value: string; unit?: string; badge?: string; badgeColor?: 'primary' | 'tertiary' }) {
+function StatCard({ label, value, unit, badge, badgeColor, valueColor }: { label: string; value: string; unit?: string; badge?: string; badgeColor?: 'primary' | 'tertiary'; valueColor?: 'error' }) {
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all">
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 md:p-5 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all">
       <p className="text-[11px] font-semibold text-secondary mb-2 uppercase tracking-wider">{label}</p>
-      <div className="flex items-baseline gap-2">
-        <span className="font-headline text-[28px] font-bold text-on-background">{value}</span>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className={`font-headline text-[24px] md:text-[28px] font-bold ${valueColor === 'error' ? 'text-error' : 'text-on-background'}`}>{value}</span>
         {unit && <span className="text-[14px] text-secondary">{unit}</span>}
         {badge && (
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${badgeColor === 'tertiary' ? 'bg-tertiary-container/10 text-tertiary-container' : 'bg-primary/10 text-primary'}`}>{badge}</span>
