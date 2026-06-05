@@ -45,6 +45,8 @@ export default function Sidebar() {
   const pathname = usePathname()
   const manuals = getAllManuals()
 
+  if (pathname === '/login') return null
+
   const menu: MenuItem[] = [
     { label: '홈', icon: 'home', href: '/' },
     {

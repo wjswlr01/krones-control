@@ -37,6 +37,8 @@ export default function TopBar() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  if (pathname === '/login') return null
+
   return (
     <header className="bg-surface border-b border-outline-variant flex items-center h-16 px-6 flex-shrink-0 sticky top-0 z-30">
       <form onSubmit={handleSubmit} className="flex-1 max-w-3xl mx-auto">
