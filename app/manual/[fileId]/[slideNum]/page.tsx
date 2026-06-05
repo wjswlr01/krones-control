@@ -5,6 +5,7 @@ import { notFound, useParams, useRouter, useSearchParams } from 'next/navigation
 import { getManual } from '@/lib/manuals'
 import { getChunk, getChunksByFile } from '@/lib/chunks'
 import SlideContext from '@/components/manual/SlideContext'
+import SlideContextTabs from '@/components/manual/SlideContextTabs'
 
 export default function SlideViewerPage() {
   const router = useRouter()
@@ -55,8 +56,8 @@ export default function SlideViewerPage() {
   const buildHref = (n: number) => `/manual/${manual.id}/${n}${suffix}`
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <aside className="w-[280px] border-r border-outline-variant bg-surface-container-low overflow-y-auto flex-shrink-0">
+    <div className="h-full overflow-hidden md:flex">
+      <aside className="hidden md:block w-[280px] border-r border-outline-variant bg-surface-container-low overflow-y-auto flex-shrink-0">
         <div className="px-4 py-3 border-b border-outline-variant sticky top-0 bg-surface-container-low z-10">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-base">{manual.icon}</span>
@@ -86,7 +87,7 @@ export default function SlideViewerPage() {
         </nav>
       </aside>
 
-      <section className="flex-1 overflow-y-auto bg-background">
+      <section className="hidden md:block flex-1 overflow-y-auto bg-background">
         <div className="max-w-[900px] mx-auto px-8 py-8">
           <nav className="flex items-center gap-2 text-[13px] text-secondary mb-4">
             <Link href="/" className="hover:text-primary no-underline">홈</Link>
@@ -135,7 +136,7 @@ export default function SlideViewerPage() {
         </div>
       </section>
 
-      <aside className="w-[320px] border-l border-outline-variant bg-surface-container-low flex flex-col flex-shrink-0 overflow-hidden">
+      <aside className="hidden md:flex w-[320px] border-l border-outline-variant bg-surface-container-low flex-col flex-shrink-0 overflow-hidden">
         <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-lowest flex-shrink-0">
           <h3 className="font-headline text-[14px] font-bold text-on-background flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px] text-primary">forum</span>관련 강의 노트
@@ -144,6 +145,53 @@ export default function SlideViewerPage() {
         </div>
         <SlideContext chunk={chunk} />
       </aside>
+
+      {/* ───────── 모바일 레이아웃 (md 미만): 헤더 + 이미지 + 세그먼트 탭 ───────── */}
+      <div className="md:hidden flex flex-col h-full bg-background">
+        {/* 헤더 */}
+        <div className="flex items-center gap-2 px-3 h-12 border-b border-outline-variant bg-surface flex-shrink-0">
+          <Link href="/manuals" aria-label="뒤로"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container-high no-underline text-on-background flex-shrink-0">
+            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+          </Link>
+          <div className="min-w-0">
+            <div className="text-[13px] font-bold text-on-background truncate">{chunk?.page_title || manual.title}</div>
+            <div className="text-[11px] text-secondary truncate">{manual.title} · {slideNum}/{manual.totalSlides}</div>
+          </div>
+        </div>
+
+        {/* 이미지 뷰어 */}
+        <div className="relative bg-surface-container-lowest border-b border-outline-variant flex-shrink-0">
+          <div className="aspect-square w-full flex items-center justify-center overflow-hidden">
+            <img src={imgSrc} alt={`${manual.title} 슬라이드 ${slideNum}`} className="w-full h-full object-contain" />
+          </div>
+          {/* 슬라이드 카운터 */}
+          <span className="absolute top-3 right-3 px-2.5 py-1 bg-inverse-surface/85 backdrop-blur-sm text-inverse-on-surface text-[11px] font-mono rounded-full">
+            {slideNum} / {manual.totalSlides}
+          </span>
+          {/* 좌우 네비 */}
+          {prevSlide && (
+            <Link href={buildHref(prevSlide)} aria-label="이전 슬라이드"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-surface/80 backdrop-blur-sm shadow-md text-on-background no-underline">
+              <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+            </Link>
+          )}
+          {nextSlide && (
+            <Link href={buildHref(nextSlide)} aria-label="다음 슬라이드"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-surface/80 backdrop-blur-sm shadow-md text-on-background no-underline">
+              <span className="material-symbols-outlined text-[22px]">chevron_right</span>
+            </Link>
+          )}
+          {/* fullscreen */}
+          <button onClick={() => setFullscreen(true)} aria-label="최대화"
+            className="absolute bottom-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-surface/80 backdrop-blur-sm shadow-md text-on-background">
+            <span className="material-symbols-outlined text-[20px]">fullscreen</span>
+          </button>
+        </div>
+
+        {/* 세그먼트 탭 + 콘텐츠 */}
+        <SlideContextTabs chunk={chunk} />
+      </div>
 
       {isFullscreen && (
         <div className="fixed inset-0 z-[100] bg-inverse-surface/95 flex flex-col backdrop-blur-sm">
@@ -195,7 +243,7 @@ export default function SlideViewerPage() {
                 )}
               </div>
             </div>
-            <aside className="w-[360px] bg-surface-container-lowest border-l border-outline-variant text-on-surface flex flex-col flex-shrink-0 overflow-hidden">
+            <aside className="hidden md:flex w-[360px] bg-surface-container-lowest border-l border-outline-variant text-on-surface flex-col flex-shrink-0 overflow-hidden">
               <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-lowest flex-shrink-0">
                 <h3 className="font-headline text-[14px] font-bold text-on-background flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[18px] text-primary">forum</span>관련 강의 노트

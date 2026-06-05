@@ -20,6 +20,8 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   if (pathname === '/login') return null
+  // 슬라이드 뷰어는 상단 세그먼트 탭을 쓰므로 하단 탭바 숨김 (목록 '/manuals'는 제외)
+  if (pathname.startsWith('/manual/')) return null
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-surface border-t border-outline-variant z-50 flex items-stretch">
