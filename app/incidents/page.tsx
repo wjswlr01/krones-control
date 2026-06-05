@@ -5,14 +5,35 @@ export default function IncidentsHubPage() {
   const stats = getStats()
   return (
     <div className="flex-1 overflow-y-auto bg-background">
-      <div className="max-w-[1200px] mx-auto px-8 py-8">
-        <nav className="flex items-center gap-2 text-[13px] text-secondary mb-6">
+      <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-6 md:py-8">
+        <nav className="hidden md:flex items-center gap-2 text-[13px] text-secondary mb-6">
           <Link href="/" className="hover:text-primary no-underline">홈</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
           <span className="text-on-background font-semibold">이상발생보고</span>
         </nav>
-        <h1 className="font-headline text-[28px] font-bold text-on-background mb-4">이상발생보고</h1>
-        <div className="inline-flex items-center gap-3 text-[13px] text-secondary bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant/50 mb-8">
+        <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-4">이상발생보고</h1>
+
+        {/* 모바일: 세로 통계 그리드 (글자별 줄바꿈 방지) */}
+        <div className="grid grid-cols-3 gap-2 md:hidden bg-surface-container-low rounded-xl border border-outline-variant/50 p-3 mb-6">
+          <div className="flex flex-col items-center text-center gap-0.5">
+            <span className="material-symbols-outlined text-[18px] text-primary">data_usage</span>
+            <span className="text-[18px] font-bold text-on-background leading-none">{stats.total.toLocaleString()}<span className="text-[11px] font-normal text-secondary ml-0.5">건</span></span>
+            <span className="text-[11px] text-secondary whitespace-nowrap">전체</span>
+          </div>
+          <div className="flex flex-col items-center text-center gap-0.5">
+            <span className="material-symbols-outlined text-[18px] text-tertiary-container">verified</span>
+            <span className="text-[18px] font-bold text-on-background leading-none">{stats.bestPractice}<span className="text-[11px] font-normal text-secondary ml-0.5">건</span></span>
+            <span className="text-[11px] text-secondary whitespace-nowrap">모범사례</span>
+          </div>
+          <div className="flex flex-col items-center text-center gap-0.5">
+            <span className="material-symbols-outlined text-[18px] text-error">timer</span>
+            <span className="text-[18px] font-bold text-on-background leading-none">{stats.longDowntime}<span className="text-[11px] font-normal text-secondary ml-0.5">건</span></span>
+            <span className="text-[11px] text-secondary whitespace-nowrap">긴 다운타임</span>
+          </div>
+        </div>
+
+        {/* 데스크톱: 가로 pill 바 (기존 유지) */}
+        <div className="hidden md:inline-flex items-center gap-3 text-[13px] text-secondary bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant/50 mb-8">
           <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-primary">data_usage</span>전체 <b className="text-on-background">{stats.total.toLocaleString()}</b>건</span>
           <span className="w-1 h-1 rounded-full bg-outline-variant"/>
           <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-tertiary-container">verified</span>모범사례 <b className="text-on-background">{stats.bestPractice}</b>건</span>
