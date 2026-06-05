@@ -1,10 +1,10 @@
 import Link from 'next/link'
-import OnboardingTour from '@/components/OnboardingTour'
+import OnboardingModal from '@/components/OnboardingModal'
 
 export default function HomePage() {
   return (
     <div className="flex-1 overflow-y-auto bg-background">
-      <OnboardingTour />
+      <OnboardingModal />
       <div className="max-w-5xl mx-auto px-8 py-16 flex flex-col items-center justify-center min-h-full">
         <div className="text-center mb-16 max-w-2xl">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-6">
