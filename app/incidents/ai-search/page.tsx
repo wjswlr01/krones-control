@@ -10,6 +10,7 @@ export default function AiSearchPage() {
   const [loading, setLoading] = useState(false)
   const [answer, setAnswer] = useState('')
   const [similar, setSimilar] = useState<SimilarCase[]>([])
+  const [lowRelevance, setLowRelevance] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export default function AiSearchPage() {
         if (data.question) setQuestion(data.question)
         if (data.answer) setAnswer(data.answer)
         if (data.similar) setSimilar(data.similar)
+        if (data.lowRelevance) setLowRelevance(data.lowRelevance)
       }
     } catch {}
   }, [])
@@ -27,7 +29,7 @@ export default function AiSearchPage() {
   const search = async (q?: string) => {
     const query = (q ?? question).trim()
     if (!query || loading) return
-    setLoading(true); setAnswer(''); setSimilar([]); setError('')
+    setLoading(true); setAnswer(''); setSimilar([]); setLowRelevance(false); setError('')
     try {
       const res = await fetch('/api/incident-ai-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -37,11 +39,13 @@ export default function AiSearchPage() {
       if (json.success) {
         setAnswer(json.data.answer)
         setSimilar(json.data.similar)
+        setLowRelevance(!!json.data.lowRelevance)
         try {
           sessionStorage.setItem('ai-search-result', JSON.stringify({
             question: query,
             answer: json.data.answer,
             similar: json.data.similar,
+            lowRelevance: !!json.data.lowRelevance,
           }))
         } catch {}
       }
@@ -130,7 +134,7 @@ export default function AiSearchPage() {
               <h2 className="font-headline text-[18px] font-bold text-on-tertiary-container flex items-center gap-2">🤖 AI 답변</h2>
               <button
                 onClick={() => {
-                  setQuestion(''); setAnswer(''); setSimilar([])
+                  setQuestion(''); setAnswer(''); setSimilar([]); setLowRelevance(false)
                   try { sessionStorage.removeItem('ai-search-result') } catch {}
                 }}
                 className="text-[12px] text-secondary hover:text-primary transition-colors flex items-center gap-1">
@@ -140,6 +144,13 @@ export default function AiSearchPage() {
             <div className="text-[14px] text-on-surface-variant leading-relaxed">
               <AnswerMarkdown>{answer}</AnswerMarkdown>
             </div>
+          </div>
+        )}
+
+        {lowRelevance && similar.length > 0 && (
+          <div className="bg-tertiary-fixed/40 border border-tertiary-container/40 rounded-lg p-3 mb-4 text-[12px] text-on-tertiary-container flex items-start gap-2">
+            <span className="material-symbols-outlined text-[16px] text-tertiary-container flex-shrink-0">warning</span>
+            <span>질문과 직접 관련된 사례가 충분치 않을 수 있습니다. 아래는 참고용입니다.</span>
           </div>
         )}
 

@@ -31,14 +31,17 @@ async function embedQuery(text: string): Promise<number[] | null> {
 }
 
 async function generateAnswer(question: string, contexts: any[]): Promise<string> {
-  const contextText = contexts.map((c, i) => `[사례 ${i+1}] ${c.title} (${c.factory}, ${c.equipment || '미지정'})\n- 발생 원인: ${c.cause}\n- 조치 사항: ${c.action}`).join('\n\n')
+  const contextText = contexts.map((c, i) => `[사례 ${i+1}] (유사도 ${Math.round((c.similarity ?? 0) * 100)}%) ${c.title}\n- 공장/공정: ${c.factory}, ${c.target_process || '미지정'}\n- 설비: ${c.equipment || '미지정'}\n- 발생 원인: ${c.cause}\n- 조치 사항: ${c.action}`).join('\n\n')
 
-  const systemPrompt = `당신은 Krones 라벨러 정비 전문가입니다. 작업자의 질문에 과거 유사 사례를 바탕으로 친절하고 구체적으로 답변하세요.
+  const systemPrompt = `당신은 Krones 라벨러 및 음료 제조 설비 전문가입니다. 아래는 사용자 질문과 임베딩 유사도로 검색된 과거 사례들이며, 유사도가 높아도 실제 설비/공정이 질문과 다를 수 있습니다.
 
-답변 규칙:
-- 위 사례를 참고해서 답변
+1. 먼저 질문의 증상이 어느 설비/공정에서 발생하는지 판단하세요 (블로워/성형, 필러/주입기, 라벨러, 캡퍼, 컨베이어, 검사기 등).
+2. 검색된 사례가 그 설비/공정과 일치하고 충분히 관련될 때만 사례 기반으로 답하세요.
+3. 사례가 질문과 무관하거나(설비/공정 불일치) 유사도가 낮으면, 억지로 인용하지 말고 '과거 사례 데이터에서 정확히 일치하는 건을 찾지 못했습니다'라고 명확히 밝힌 뒤, 일반 설비 지식으로 신중히 안내하세요. 이때 해당 증상이 보통 어느 설비/공정에서 발생하는지 함께 설명하세요.
+4. 추측을 사실처럼 단정하지 마세요.
+
+답변 형식:
 - 구체적 조치 방법, 점검 포인트, 주의사항 위주
-- 사례에 없는 내용은 추정하지 말 것
 - 한국어로 친절하고 명확하게
 - 400자 이내`
 
@@ -98,10 +101,16 @@ export async function POST(req: NextRequest) {
     return { id: inc.id, title: inc.title, factory: inc.factory, equipment: inc.equipment, downtime_min: inc.downtime_min, is_best_practice: inc.is_best_practice, similarity: s.sim }
   }).filter(Boolean)
 
-  const topContexts = scored.slice(0, 3).map(s => incidentMap.get(s.id)).filter(Boolean)
+  const RELEVANCE_THRESHOLD = 0.68
+  const topSim = scored[0]?.sim ?? 0
+  const lowRelevance = topSim < RELEVANCE_THRESHOLD
+
+  const topContexts = scored.slice(0, 3)
+    .map(s => { const inc = incidentMap.get(s.id); return inc ? { ...inc, similarity: s.sim } : null })
+    .filter(Boolean)
   try {
     const answer = await generateAnswer(question, topContexts)
-    return NextResponse.json({ success: true, data: { answer, similar } })
+    return NextResponse.json({ success: true, data: { answer, similar, lowRelevance } })
   } catch (e) {
     console.error('[incident-ai-search] OpenAI error:', e)
     return NextResponse.json({ success: false, error: { message: '답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } }, { status: 503 })
