@@ -1,57 +1,96 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import AnswerMarkdown from '@/components/AnswerMarkdown'
 
 interface SimilarCase { id: string; title: string; factory: string; equipment: string; downtime_min: number; similarity: number; is_best_practice: boolean }
+interface Turn { question: string; answer: string; similar: SimilarCase[]; lowRelevance: boolean }
+
+const STORAGE_KEY = 'ai-search-thread'
+
+function CaseList({ similar, lowRelevance }: { similar: SimilarCase[]; lowRelevance: boolean }) {
+  if (!similar || similar.length === 0) return null
+  return (
+    <details className="mt-3 group/cases">
+      <summary className="cursor-pointer list-none flex items-center gap-1.5 text-[12px] font-semibold text-secondary hover:text-primary transition-colors">
+        <span className="material-symbols-outlined text-[16px] transition-transform group-open/cases:rotate-90">chevron_right</span>
+        📑 참고한 사례 {similar.length}건
+      </summary>
+      <div className="mt-2 space-y-2">
+        {lowRelevance && (
+          <div className="bg-tertiary-fixed/40 border border-tertiary-container/40 rounded-lg p-2.5 text-[11px] text-on-tertiary-container flex items-start gap-1.5">
+            <span className="material-symbols-outlined text-[14px] text-tertiary-container flex-shrink-0">warning</span>
+            <span>질문과 직접 관련된 사례가 충분치 않을 수 있습니다. 아래는 참고용입니다.</span>
+          </div>
+        )}
+        {similar.map(c => (
+          <Link key={c.id} href={`/incidents/${c.id}`}
+            className="block bg-surface-container-lowest border border-outline-variant rounded-lg p-4 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all no-underline">
+            <div className="flex items-start justify-between mb-2 gap-3">
+              <h3 className="text-[13px] font-bold text-on-background flex-1">{c.title}</h3>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {c.is_best_practice && <span className="bg-tertiary-container/15 text-tertiary-container text-[10px] font-semibold px-2 py-0.5 rounded flex items-center gap-1"><span className="material-symbols-outlined text-[11px]">star</span>모범사례</span>}
+                <span className="bg-primary-container/15 text-primary text-[10px] font-semibold px-2 py-0.5 rounded">유사도 {Math.round(c.similarity * 100)}%</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 text-[11px] text-secondary">
+              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">tag</span>{c.id}</span>
+              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">factory</span>{c.factory}</span>
+              {c.equipment && <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">precision_manufacturing</span>{c.equipment}</span>}
+              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">timer</span>{c.downtime_min}분</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </details>
+  )
+}
 
 export default function AiSearchClient({ count }: { count: number }) {
+  const [turns, setTurns] = useState<Turn[]>([])
   const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
-  const [answer, setAnswer] = useState('')
-  const [similar, setSimilar] = useState<SimilarCase[]>([])
-  const [lowRelevance, setLowRelevance] = useState(false)
+  const [pending, setPending] = useState<string | null>(null)   // 답변 대기 중인 내 질문
   const [error, setError] = useState('')
+  const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     try {
-      const cached = sessionStorage.getItem('ai-search-result')
-      if (cached) {
-        const data = JSON.parse(cached)
-        if (data.question) setQuestion(data.question)
-        if (data.answer) setAnswer(data.answer)
-        if (data.similar) setSimilar(data.similar)
-        if (data.lowRelevance) setLowRelevance(data.lowRelevance)
-      }
+      const cached = sessionStorage.getItem(STORAGE_KEY)
+      if (cached) { const data = JSON.parse(cached); if (Array.isArray(data)) setTurns(data) }
     } catch {}
   }, [])
 
-  const search = async (q?: string) => {
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns, pending])
+
+  const ask = async (q?: string) => {
     const query = (q ?? question).trim()
     if (!query || loading) return
-    setLoading(true); setAnswer(''); setSimilar([]); setLowRelevance(false); setError('')
+    setLoading(true); setPending(query); setQuestion(''); setError('')
+    const history = turns.map(t => ({ question: t.question, answer: t.answer }))
     try {
       const res = await fetch('/api/incident-ai-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: query })
+        body: JSON.stringify({ question: query, history }),
       })
       const json = await res.json()
       if (json.success) {
-        setAnswer(json.data.answer)
-        setSimilar(json.data.similar)
-        setLowRelevance(!!json.data.lowRelevance)
-        try {
-          sessionStorage.setItem('ai-search-result', JSON.stringify({
-            question: query,
-            answer: json.data.answer,
-            similar: json.data.similar,
-            lowRelevance: !!json.data.lowRelevance,
-          }))
-        } catch {}
+        const turn: Turn = { question: query, answer: json.data.answer, similar: json.data.similar ?? [], lowRelevance: !!json.data.lowRelevance }
+        setTurns(prev => {
+          const next = [...prev, turn]
+          try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
+          return next
+        })
+      } else {
+        setError(json.error?.message ?? '검색 실패'); setQuestion(query)
       }
-      else setError(json.error?.message ?? '검색 실패')
-    } catch { setError('네트워크 오류') }
-    setLoading(false)
+    } catch { setError('네트워크 오류'); setQuestion(query) }
+    setPending(null); setLoading(false)
+  }
+
+  const reset = () => {
+    setTurns([]); setQuestion(''); setError(''); setPending(null)
+    try { sessionStorage.removeItem(STORAGE_KEY) } catch {}
   }
 
   const examples = [
@@ -60,11 +99,12 @@ export default function AiSearchClient({ count }: { count: number }) {
     '블로워 프리폼 성형 불량 점검 포인트',
     'E-Stop 발생 후 초기화 시 센서 오작동 대처 방안',
   ]
+  const empty = turns.length === 0 && !pending
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
-      <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-6 md:py-8">
-        {/* 브레드크럼: 데스크톱만 */}
+      <div className="max-w-[900px] mx-auto px-4 md:px-8 py-6 md:py-8">
+        {/* 브레드크럼 */}
         <nav className="hidden md:flex items-center gap-2 text-[13px] text-secondary mb-6">
           <Link href="/" className="hover:text-primary no-underline">홈</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
@@ -73,39 +113,30 @@ export default function AiSearchClient({ count }: { count: number }) {
           <span className="text-on-background font-semibold">AI 사례검색</span>
         </nav>
 
-        {/* 헤더: 모바일 중앙 / 데스크톱 좌측 */}
-        <div className="text-center md:text-left mb-6 md:mb-8">
-          <div className="text-[44px] leading-none mb-2 md:hidden">🤖</div>
-          <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-2 flex items-center gap-3 justify-center md:justify-start">
-            <span className="hidden md:inline">🤖</span>AI 사례검색
-          </h1>
-          <p className="text-[14px] text-secondary">설비 이상발생 사례 {count.toLocaleString()}건에서 AI가 답을 찾아드립니다.</p>
-        </div>
-
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-sm mb-8 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
-          <textarea value={question} onChange={e => setQuestion(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); search() } }}
-            placeholder="예: 어셉틱 충전부 넥 찍힘 현상 원인과 조치 방법은?"
-            disabled={loading}
-            className="w-full bg-transparent border-none focus:ring-0 text-[14px] text-on-background placeholder:text-outline resize-none min-h-[120px] outline-none" />
-          <div className="flex items-center justify-between border-t border-outline-variant pt-3 mt-2">
-            <div className="flex items-center gap-2 text-secondary">
-              <span className="material-symbols-outlined text-[18px]">keyboard_return</span>
-              <span className="text-[12px]">Enter로 검색<span className="hidden sm:inline"> · Shift+Enter로 줄바꿈</span></span>
-            </div>
-            <button onClick={() => search()} disabled={loading || !question.trim()}
-              className="bg-primary text-on-primary px-5 py-2 rounded-full text-[13px] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm">
-              {loading ? '검색 중...' : <><span className="material-symbols-outlined text-[18px]">smart_toy</span>AI 검색</>}
-            </button>
+        {/* 헤더 */}
+        <div className="flex items-start justify-between gap-3 mb-6 md:mb-8">
+          <div className="text-center md:text-left flex-1">
+            <div className="text-[44px] leading-none mb-2 md:hidden">🤖</div>
+            <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-2 flex items-center gap-3 justify-center md:justify-start">
+              <span className="hidden md:inline">🤖</span>AI 사례검색
+            </h1>
+            <p className="text-[14px] text-secondary">설비 이상발생 사례 {count.toLocaleString()}건에서 AI가 답을 찾아드립니다. 이어서 후속 질문도 가능합니다.</p>
           </div>
+          {!empty && (
+            <button onClick={reset}
+              className="flex-shrink-0 text-[12px] text-secondary hover:text-primary transition-colors flex items-center gap-1 border border-outline-variant rounded-full px-3 py-1.5 hover:border-primary/40">
+              <span className="material-symbols-outlined text-[16px]">add_comment</span>새 대화
+            </button>
+          )}
         </div>
 
-        {!answer && !loading && (
-          <div className="mb-8">
+        {/* 추천 질문: 빈 대화에서만 */}
+        {empty && (
+          <div className="mb-6">
             <h3 className="text-[12px] font-semibold text-secondary mb-3 uppercase tracking-wider">추천 질문</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {examples.map(ex => (
-                <button key={ex} onClick={() => { setQuestion(ex); search(ex) }}
+                <button key={ex} onClick={() => ask(ex)}
                   className="flex items-center gap-3 text-left bg-surface-container-lowest border border-outline-variant rounded-lg p-4 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all group">
                   <span className="material-symbols-outlined text-[20px] text-primary flex-shrink-0">chat_bubble</span>
                   <p className="text-[13px] text-on-background group-hover:text-primary transition-colors">{ex}</p>
@@ -115,80 +146,73 @@ export default function AiSearchClient({ count }: { count: number }) {
           </div>
         )}
 
+        {/* 대화 스레드 */}
+        <div className="space-y-6">
+          {turns.map((t, i) => (
+            <div key={i} className="space-y-3">
+              {/* 내 질문 */}
+              <div className="flex justify-end">
+                <div className="bg-primary text-on-primary rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] text-[14px] whitespace-pre-wrap leading-relaxed shadow-sm">{t.question}</div>
+              </div>
+              {/* AI 답변 */}
+              <div className="bg-tertiary-fixed/40 border-l-4 border-tertiary-container rounded-r-xl p-5 shadow-sm">
+                <h2 className="font-headline text-[15px] font-bold text-on-tertiary-container flex items-center gap-2 flex-wrap mb-2">
+                  🤖 AI 답변
+                  {t.lowRelevance && (
+                    <span className="text-[11px] font-semibold text-tertiary bg-tertiary-fixed/70 border border-tertiary-container/40 px-2 py-0.5 rounded-full flex items-center gap-1">💡 일반 참고 · 사례 근거 아님</span>
+                  )}
+                </h2>
+                <div className="text-[14px] text-on-surface-variant leading-relaxed">
+                  <AnswerMarkdown>{t.answer}</AnswerMarkdown>
+                </div>
+                <CaseList similar={t.similar} lowRelevance={t.lowRelevance} />
+              </div>
+            </div>
+          ))}
+
+          {/* 대기 중 turn */}
+          {pending && (
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <div className="bg-primary text-on-primary rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] text-[14px] whitespace-pre-wrap leading-relaxed shadow-sm">{pending}</div>
+              </div>
+              <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-[13px] text-secondary">유사 사례 검색 + AI 답변 생성 중...</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {error && (
-          <div className="bg-error-container border border-error/20 rounded-lg p-4 mb-6 text-[13px] text-on-error-container flex items-center gap-2">
+          <div className="bg-error-container border border-error/20 rounded-lg p-4 mt-4 text-[13px] text-on-error-container flex items-center gap-2">
             <span className="material-symbols-outlined text-[18px]">error</span>{error}
           </div>
         )}
 
-        {loading && (
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-8 mb-6 flex flex-col items-center gap-4">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="text-[13px] text-secondary">유사 사례 검색 + AI 답변 생성 중...</span>
-          </div>
-        )}
+        <div ref={endRef} />
 
-        {answer && (
-          <div className="bg-tertiary-fixed/40 border-l-4 border-tertiary-container rounded-r-xl p-6 mb-8 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-headline text-[18px] font-bold text-on-tertiary-container flex items-center gap-2 flex-wrap">
-                🤖 AI 답변
-                {lowRelevance && (
-                  <span className="text-[11px] font-semibold text-tertiary bg-tertiary-fixed/70 border border-tertiary-container/40 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    💡 일반 참고 · 사례 근거 아님
-                  </span>
-                )}
-              </h2>
-              <button
-                onClick={() => {
-                  setQuestion(''); setAnswer(''); setSimilar([]); setLowRelevance(false)
-                  try { sessionStorage.removeItem('ai-search-result') } catch {}
-                }}
-                className="text-[12px] text-secondary hover:text-primary transition-colors flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">refresh</span>새 검색
+        {/* 하단 고정 입력창 */}
+        <div className="sticky bottom-0 mt-6 pt-2 pb-1 bg-gradient-to-t from-background via-background to-transparent">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+            <textarea value={question} onChange={e => setQuestion(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask() } }}
+              placeholder={turns.length ? '이어서 후속 질문... (예: 그럼 조치 방법은?)' : '예: 어셉틱 충전부 넥 찍힘 현상 원인과 조치는?'}
+              disabled={loading}
+              rows={1}
+              className="w-full bg-transparent border-none focus:ring-0 text-[14px] text-on-background placeholder:text-outline resize-none max-h-[140px] min-h-[24px] outline-none" />
+            <div className="flex items-center justify-between border-t border-outline-variant pt-2 mt-2">
+              <span className="text-[12px] text-secondary flex items-center gap-1">
+                <span className="material-symbols-outlined text-[16px]">keyboard_return</span>
+                Enter 전송<span className="hidden sm:inline"> · Shift+Enter 줄바꿈</span>
+              </span>
+              <button onClick={() => ask()} disabled={loading || !question.trim()}
+                className="bg-primary text-on-primary px-5 py-2 rounded-full text-[13px] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm">
+                {loading ? '생성 중...' : <><span className="material-symbols-outlined text-[18px]">send</span>전송</>}
               </button>
             </div>
-            <div className="text-[14px] text-on-surface-variant leading-relaxed">
-              <AnswerMarkdown>{answer}</AnswerMarkdown>
-            </div>
           </div>
-        )}
-
-        {lowRelevance && similar.length > 0 && (
-          <div className="bg-tertiary-fixed/40 border border-tertiary-container/40 rounded-lg p-3 mb-4 text-[12px] text-on-tertiary-container flex items-start gap-2">
-            <span className="material-symbols-outlined text-[16px] text-tertiary-container flex-shrink-0">warning</span>
-            <span>질문과 직접 관련된 사례가 충분치 않을 수 있습니다. 아래는 참고용입니다.</span>
-          </div>
-        )}
-
-        {similar.length > 0 && (
-          <div>
-            <h2 className="font-headline text-[18px] font-bold text-on-background mb-4 flex items-center gap-2">
-              📑 참고한 유사 사례
-              <span className="text-[12px] font-semibold text-secondary bg-surface-container px-2 py-0.5 rounded-full">{similar.length}건</span>
-            </h2>
-            <div className="space-y-3">
-              {similar.map(c => (
-                <Link key={c.id} href={`/incidents/${c.id}`}
-                  className="block bg-surface-container-lowest border border-outline-variant rounded-lg p-5 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all no-underline">
-                  <div className="flex items-start justify-between mb-3 gap-3">
-                    <h3 className="text-[14px] font-bold text-on-background flex-1">{c.title}</h3>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {c.is_best_practice && <span className="bg-tertiary-container/15 text-tertiary-container text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">star</span>모범사례</span>}
-                      <span className="bg-primary-container/15 text-primary text-[11px] font-semibold px-2 py-0.5 rounded">유사도 {Math.round(c.similarity * 100)}%</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-4 text-[12px] text-secondary">
-                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">tag</span>{c.id}</span>
-                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">factory</span>{c.factory}</span>
-                    {c.equipment && <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">precision_manufacturing</span>{c.equipment}</span>}
-                    <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">timer</span>{c.downtime_min}분</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )

@@ -76,7 +76,9 @@ async function embedQuery(text: string): Promise<number[] | null> {
   } catch { return null }
 }
 
-async function generateAnswer(question: string, contexts: any[], lowRelevance: boolean): Promise<string> {
+type Turn = { question: string; answer: string }
+
+async function generateAnswer(question: string, contexts: any[], lowRelevance: boolean, history: Turn[] = []): Promise<string> {
   const contextText = contexts.map((c, i) => `[사례 ${i+1}] (유사도 ${Math.round((c.similarity ?? 0) * 100)}%) ${c.title}\n- 공장/공정: ${c.factory}, ${c.target_process || '미지정'}\n- 설비: ${c.equipment || '미지정'}\n- 발생 원인: ${c.cause}\n- 조치 사항: ${c.action}`).join('\n\n')
 
   const systemPrompt = `당신은 Krones 라벨러 및 음료 제조 설비 전문가입니다. 아래는 사용자 질문과 임베딩 유사도로 검색된 과거 사례들이며, 유사도가 높아도 실제 설비/공정이 질문과 다를 수 있습니다.
@@ -96,16 +98,23 @@ ${lowRelevance ? '\n[현재 검색 결과 판정] lowRelevance = true (질문과
 - 한국어로 친절하고 명확하게
 - 400자 이내`
 
-  const userPrompt = `[과거 유사 사례]
+  const userPrompt = `[현재 질문 기준 과거 유사 사례]
 ${contextText}
 
 [작업자 질문]
 ${question}`
 
-  return callOpenAI(systemPrompt, userPrompt)
+  // 멀티턴: system → 이전 turn(user/assistant) → 현재 질문(+이번 검색 사례)
+  const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [{ role: 'system', content: systemPrompt }]
+  for (const h of history.slice(-8)) {
+    if (h?.question) messages.push({ role: 'user', content: h.question })
+    if (h?.answer) messages.push({ role: 'assistant', content: h.answer })
+  }
+  messages.push({ role: 'user', content: userPrompt })
+  return callOpenAIMessages(messages)
 }
 
-async function callOpenAI(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<string> {
+async function callOpenAIMessages(messages: { role: 'system' | 'user' | 'assistant'; content: string }[], temperature = 0.3): Promise<string> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -114,10 +123,7 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, temperature 
     },
     body: JSON.stringify({
       model: 'gpt-5.4-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+      messages,
       temperature,
     }),
   })
@@ -131,14 +137,29 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, temperature 
   return data.choices?.[0]?.message?.content ?? ''
 }
 
+// 단발 system+user 호출 (설비 분류기용)
+async function callOpenAI(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<string> {
+  return callOpenAIMessages([
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ], temperature)
+}
+
 export async function POST(req: NextRequest) {
-  const { question } = await req.json().catch(() => ({}))
+  const body = await req.json().catch(() => ({}))
+  const question: string = body?.question ?? ''
+  const history: Turn[] = Array.isArray(body?.history)
+    ? body.history.filter((h: any) => h?.question && h?.answer).map((h: any) => ({ question: String(h.question), answer: String(h.answer) }))
+    : []
   if (!question?.trim()) return NextResponse.json({ success: false, error: { message: '질문을 입력하세요.' } }, { status: 400 })
   if (!OPENAI_API_KEY) return NextResponse.json({ success: false, error: { message: 'API 키 미설정' } }, { status: 500 })
 
-  // 임베딩(OpenAI)과 질문 설비분류(GPT)는 독립 — 병렬 처리
+  // 검색용 임베딩 쿼리: 후속 질문(짧은말/대명사) 보정 위해 직전 질문 + 현재 질문 결합
+  const embedInput = history.length ? `${history[history.length - 1].question} ${question}` : question
+
+  // 임베딩(OpenAI)과 질문 설비분류(GPT)는 독립 — 병렬 처리. 분류/판정은 현재 질문 기준.
   const [qEmb, queryCats] = await Promise.all([
-    embedQuery(question),
+    embedQuery(embedInput),
     classifyQuestionEquipment(question),
   ])
   if (!qEmb) return NextResponse.json({ success: false, error: { message: '임베딩 생성 실패' } }, { status: 500 })
@@ -173,7 +194,7 @@ export async function POST(req: NextRequest) {
   console.log('[ai-search] q=%j topSim=%s queryCats=%j caseCats=%j mismatch=%s lowRelevance=%s',
     question, topSim.toFixed(3), queryCats, caseCats, equipmentMismatch, lowRelevance)
   try {
-    const answer = await generateAnswer(question, topContexts, lowRelevance)
+    const answer = await generateAnswer(question, topContexts, lowRelevance, history)
     return NextResponse.json({ success: true, data: { answer, similar, lowRelevance } })
   } catch (e) {
     console.error('[incident-ai-search] OpenAI error:', e)
