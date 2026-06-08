@@ -17,6 +17,51 @@ function cosSim(a: number[], b: number[]): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
+// ── 설비 카테고리 분류 (음료 생산라인) ──────────────────────────────
+// 주의: filler 의 '넥'은 labeler('넥라벨')와 겹치므로 bare '넥' 대신 병목/넥부만 사용
+const CATEGORY_KEYWORDS: Record<string, RegExp> = {
+  blower:    /프리폼|블로우|블로워|브로워|성형|몰드|blow|preform/i,
+  filler:    /필러|충전|충진|주입|어셉|어셉틱|asept|병목|넥부|액위|밸브|filler/i,
+  capper:    /캡퍼|캡핑|토크|뚜껑|capper|\bcap\b|씰러|시머|seamer/i,
+  labeler:   /라벨|라벨라|글루|롤러|스타휠|슬리브|sleeve|수축라벨|쉬링크|시링크|opp|label/i,
+  conveyor:  /컨베이어|conveyor|반송/i,
+  inspector: /비전|검사|inspect|vision|x.?ray|엑스레이/i,
+}
+
+function classifyByKeywords(text: string): string[] {
+  const cats = Object.entries(CATEGORY_KEYWORDS).filter(([, re]) => re.test(text || '')).map(([k]) => k)
+  return cats.length ? cats : ['etc']
+}
+
+// 사례 분류: 설비 필드가 더 신뢰도 높음 → 우선 사용, 미지정/불명확일 때만 제목으로 폴백
+// (제목의 '몰드' 등 단어가 라벨러 사례를 blower로 오분류하는 것을 방지)
+function classifyCase(c: { equipment?: string; title?: string }): string[] {
+  const byEq = c.equipment ? classifyByKeywords(c.equipment) : ['etc']
+  if (byEq[0] !== 'etc') return byEq
+  return classifyByKeywords(c.title || '')
+}
+
+// 질문의 설비 카테고리를 GPT로 분류 (모호어는 문맥 판단). 실패 시 키워드 폴백.
+async function classifyQuestionEquipment(question: string): Promise<string[]> {
+  if (!OPENAI_API_KEY) return classifyByKeywords(question)
+  const sys = `당신은 음료 생산라인 설비 분류기입니다. 작업자 질문이 어느 설비 카테고리의 문제인지 판단하세요.
+카테고리: blower(프리폼/블로우몰드/성형/몰드), filler(필러/충전/어셉틱/병목 넥/액위), capper(캡/뚜껑/토크), labeler(라벨/글루/롤러/스타휠/슬리브/수축라벨), conveyor(컨베이어), inspector(비전/검사), etc(그외/불명확)
+규칙:
+- 1개 이상 선택, 가장 가능성 높은 카테고리 위주.
+- 모호어 주의: '넥'은 넥라벨(labeler)일 수도, 병목 넥/넥찍힘(filler·blower 성형불량)일 수도 있으니 문맥으로 판단하세요.
+- 반드시 JSON만 출력: {"categories":["..."]}`
+  try {
+    const raw = await callOpenAI(sys, question, 0)
+    const m = raw.match(/\{[\s\S]*\}/)
+    const parsed = m ? JSON.parse(m[0]) : null
+    const cats: string[] = Array.isArray(parsed?.categories) ? parsed.categories : []
+    const valid = cats.map(c => String(c).toLowerCase().trim()).filter(c => c === 'etc' || c in CATEGORY_KEYWORDS)
+    return valid.length ? [...new Set(valid)] : classifyByKeywords(question)
+  } catch {
+    return classifyByKeywords(question)
+  }
+}
+
 async function embedQuery(text: string): Promise<number[] | null> {
   try {
     const res = await fetch(`${EMBED_URL}?key=${GEMINI_API_KEY}`, {
@@ -59,7 +104,7 @@ ${question}`
   return callOpenAI(systemPrompt, userPrompt)
 }
 
-async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<string> {
+async function callOpenAI(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<string> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -72,7 +117,7 @@ async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<str
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.3,
+      temperature,
     }),
   })
 
@@ -91,7 +136,11 @@ export async function POST(req: NextRequest) {
   if (!GEMINI_API_KEY) return NextResponse.json({ success: false, error: { message: 'API 키 미설정' } }, { status: 500 })
   if (!OPENAI_API_KEY) return NextResponse.json({ success: false, error: { message: 'API 키 미설정' } }, { status: 500 })
 
-  const qEmb = await embedQuery(question)
+  // 임베딩(Gemini)과 질문 설비분류(GPT)는 독립 — 병렬 처리
+  const [qEmb, queryCats] = await Promise.all([
+    embedQuery(question),
+    classifyQuestionEquipment(question),
+  ])
   if (!qEmb) return NextResponse.json({ success: false, error: { message: '임베딩 생성 실패' } }, { status: 500 })
 
   const scored = Object.entries(embeddings)
@@ -108,11 +157,21 @@ export async function POST(req: NextRequest) {
 
   const RELEVANCE_THRESHOLD = 0.68
   const topSim = scored[0]?.sim ?? 0
-  const lowRelevance = topSim < RELEVANCE_THRESHOLD
+  const cosineLow = topSim < RELEVANCE_THRESHOLD
 
   const topContexts = scored.slice(0, 3)
     .map(s => { const inc = incidentMap.get(s.id); return inc ? { ...inc, similarity: s.sim } : null })
-    .filter(Boolean)
+    .filter(Boolean) as any[]
+
+  // 설비 불일치 감지: top 사례 설비 카테고리 ∩ 질문 카테고리 = ∅ 이면 cosine 높아도 lowRelevance 강제
+  const caseCats = [...new Set(topContexts.flatMap(c => classifyCase(c)))]
+  const qSpecific = queryCats.filter(c => c !== 'etc')
+  const cSpecific = caseCats.filter(c => c !== 'etc')
+  const equipmentMismatch = qSpecific.length > 0 && cSpecific.length > 0 && !qSpecific.some(c => cSpecific.includes(c))
+  const lowRelevance = cosineLow || equipmentMismatch
+
+  console.log('[ai-search] q=%j topSim=%s queryCats=%j caseCats=%j mismatch=%s lowRelevance=%s',
+    question, topSim.toFixed(3), queryCats, caseCats, equipmentMismatch, lowRelevance)
   try {
     const answer = await generateAnswer(question, topContexts, lowRelevance)
     return NextResponse.json({ success: true, data: { answer, similar, lowRelevance } })
