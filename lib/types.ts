@@ -34,6 +34,7 @@ export interface ManualMeta {
   icon:        string
   totalSlides: number
   fileName:    string
+  group:       string              // 설비종류 키 (labeler / blowmoulder …)
 }
 
 export interface SearchHit {

@@ -1,0 +1,188 @@
+// scripts/build-blowmoulder.mjs
+// 제병기(Blow Moulder) chunks + 임베딩 매칭 + GPT 강사노하우 요약 생성.
+// 라벨러 데이터는 절대 수정하지 않고 blowmoulder-* 만 추가.
+//
+// 사전조건: data/manuals-raw/_pdf/*.pdf (LibreOffice 변환본), public/slides/blowmoulder-*/ webp 존재
+// 실행: OPENAI_API_KEY=... node scripts/build-blowmoulder.mjs
+// 의존성: pdfjs-dist (텍스트 추출), OpenAI(임베딩+요약)
+// ════════════════════════════════════════════════════════════════
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
+const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+const PDF_DIR = "data/manuals-raw/_pdf";
+const TXT_DIR = "data/manuals-raw";
+const CACHE = "data/manuals-raw/_summaries-cache.json";
+const KEY = process.env.OPENAI_API_KEY;
+const EMBED_MODEL = "text-embedding-3-small", DIM = 1536;
+const CHAT_MODEL = "gpt-5.4-mini";
+const TOPK = 4;                 // 라벨러와 동일
+const CHUNK_SIZE = 500;         // 라벨러 transcript 청크 크기와 동일
+const CONC = 5;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const MANUALS = [
+  { pdf: "Blow Moulder_01 설비관리_C3 Pro.pdf", fileName: "Blow Moulder_01 설비관리_C3 Pro.pptx", fid: "blowmoulder-01", content_type: "설비관리" },
+  { pdf: "Blow Moulder_02 설비이론_C3 Pro.pdf", fileName: "Blow Moulder_02 설비이론_C3 Pro.pptx", fid: "blowmoulder-02", content_type: "설비이론" },
+  { pdf: "Blow Moulder_03 설비세팅_C3 Pro.pdf", fileName: "Blow Moulder_03 설비세팅_C3 Pro.pptx", fid: "blowmoulder-03", content_type: "설비세팅" },
+  { pdf: "Blow Moulder_04 설비트러블_C3 Pro.pdf", fileName: "Blow Moulder_04 설비트러블_C3 Pro.pptx", fid: "blowmoulder-04", content_type: "트러블슈팅" },
+];
+const TRANSCRIPTS = [
+  "4_22 강릉공장 제병기 CPU-kit(오전).txt", "4_22 강릉공장 제병 cpu-kit(오후).txt",
+  "4_23 강릉공장 CPU-Kit 제병기 (오전 1).txt", "4_23 강릉공장 CPU-Kit 제병기 (오전 2).txt",
+  "4_23 강릉공장 CPU-Kit 제병기 (오후1).txt", "4_23 강릉공장 CPU-Kit 제병기 (오후2).txt",
+  "4_24 강릉공장 CPU-Kit 제병기 (오후).txt", "4_24 강릉공장 CPU-Kit 제병기 (오전) (1).txt",
+];
+
+const cos = (a, b) => { let s = 0, na = 0, nb = 0; for (let i = 0; i < a.length; i++) { s += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; } return s / Math.sqrt(na*nb); };
+
+function pageTitle(items) {
+  let best = null;
+  for (const it of items) {
+    const s = Math.abs(it.transform[3]); const str = it.str.trim();
+    if (!str || /^\d{1,3}$/.test(str) || /^\d{4}\/\d/.test(str)) continue;
+    if (!best || s > best.size + 0.5) best = { size: s, y: it.transform[5], parts: [str] };
+    else if (Math.abs(s - best.size) <= 0.5 && Math.abs(it.transform[5] - best.y) < s) best.parts.push(str);
+  }
+  return best ? best.parts.join(" ").replace(/\s+/g, " ").trim().slice(0, 50) : "";
+}
+
+async function extractSlides(m) {
+  const data = new Uint8Array(readFileSync(resolve(PDF_DIR, m.pdf)));
+  const doc = await getDocument({ data, isEvalSupported: false }).promise;
+  const out = [];
+  for (let pn = 1; pn <= doc.numPages; pn++) {
+    const page = await doc.getPage(pn);
+    const items = (await page.getTextContent()).items.filter((i) => i.str !== undefined && i.transform);
+    const text = items.map((i) => i.str).join(" ").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
+    const num = String(pn).padStart(3, "0");
+    out.push({
+      chunk_id: `${m.fid}_slide_${num}`, source_type: "pptx", file_name: m.fileName, file_id: m.fid,
+      slide_number: pn, content_type: m.content_type, page_title: pageTitle(items),
+      text, slide_image_url: `/slides/${m.fid}/slide_${num}.webp`,
+    });
+  }
+  return out;
+}
+
+function chunkTranscripts() {
+  const out = []; let gi = 0;
+  for (const fn of TRANSCRIPTS) {
+    let raw = readFileSync(resolve(TXT_DIR, fn), "utf8").replace(/^﻿/, "");
+    const title = fn.replace(/\.txt$/i, "");
+    const norm = raw.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
+    let ci = 0;
+    for (let i = 0; i < norm.length;) {
+      let end = Math.min(i + CHUNK_SIZE, norm.length);
+      if (end < norm.length) { const sp = norm.lastIndexOf(" ", end); if (sp > i + CHUNK_SIZE * 0.6) end = sp; }
+      const text = norm.slice(i, end).trim();
+      if (text) {
+        gi++; ci++;
+        out.push({
+          chunk_id: `blowmoulder_chunk_${String(gi).padStart(3, "0")}`, source_type: "transcript",
+          file_name: fn, file_id: "blowmoulder-transcripts", chunk_index: ci,
+          content_type: "강의", page_title: title, text,
+        });
+      }
+      i = end;
+    }
+  }
+  return out;
+}
+
+async function embedAll(texts) {
+  const vecs = []; const B = 256;
+  for (let i = 0; i < texts.length; i += B) {
+    const batch = texts.slice(i, i + B);
+    let ok = false;
+    for (let a = 0; a < 6 && !ok; a++) {
+      const res = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` },
+        body: JSON.stringify({ model: EMBED_MODEL, input: batch, dimensions: DIM }),
+      });
+      if (res.ok) { const d = await res.json(); d.data.sort((x, y) => x.index - y.index).forEach((e) => vecs.push(e.embedding)); ok = true; }
+      else if (res.status === 429 || res.status >= 500) { await sleep(2 ** a * 1000); }
+      else throw new Error(`embed ${res.status}: ${(await res.text()).slice(0, 150)}`);
+    }
+    if (!ok) throw new Error("embed 재시도 초과");
+    console.log(`  임베딩 ${Math.min(i + B, texts.length)}/${texts.length}`);
+  }
+  return vecs;
+}
+
+async function summarize(slide, tops) {
+  const ctx = tops.map((t) => `[${t.file_name}]\n${t.text}`).join("\n---\n");
+  const sys = `당신은 Krones 제병기(Blow Moulder) 설비 전문가입니다. 아래 강의 녹취록에서 현재 슬라이드 주제와 관련된 '현장 노하우'를 추출해 요약하세요.
+규칙:
+- 반드시 "핵심 노하우:" 로 시작하고, 그 아래 핵심 노하우를 "*   " 불릿으로 2~4개 정리
+- 녹취에 실제로 있는 실무 팁/수치/주의사항만. 없으면 일반론 말고 슬라이드 주제 관련 핵심만 간결히
+- 한국어, 300자 이내`;
+  const usr = `[현재 슬라이드: ${slide.page_title || slide.slide_number}]\n${slide.text.slice(0, 1200)}\n\n[관련 강의 녹취]\n${ctx}`;
+  for (let a = 0; a < 5; a++) {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` },
+      body: JSON.stringify({ model: CHAT_MODEL, temperature: 0.3, messages: [{ role: "system", content: sys }, { role: "user", content: usr }] }),
+    });
+    if (res.ok) return (await res.json()).choices?.[0]?.message?.content ?? "";
+    if (res.status === 429 || res.status >= 500) { await sleep(2 ** a * 1000); continue; }
+    throw new Error(`chat ${res.status}: ${(await res.text()).slice(0, 150)}`);
+  }
+  throw new Error("chat 재시도 초과");
+}
+
+async function main() {
+  if (!KEY) throw new Error("OPENAI_API_KEY 미설정");
+  // 1) 슬라이드 텍스트 + 녹취 청킹
+  let slides = [];
+  for (const m of MANUALS) { const s = await extractSlides(m); console.log(`${m.fid}: ${s.length} slides`); slides = slides.concat(s); }
+  const trans = chunkTranscripts();
+  console.log(`pptx 청크 ${slides.length} / transcript 청크 ${trans.length}`);
+
+  // 2) 임베딩 (슬라이드 + 녹취)
+  console.log("임베딩...");
+  const slideVecs = await embedAll(slides.map((s) => `${s.page_title}\n${s.text}`.slice(0, 6000)));
+  const transVecs = await embedAll(trans.map((t) => t.text));
+
+  // 3) 슬라이드별 top-K 녹취
+  const matches = slides.map((s, si) => {
+    const scored = trans.map((t, ti) => ({ t, sim: cos(slideVecs[si], transVecs[ti]) })).sort((a, b) => b.sim - a.sim).slice(0, TOPK);
+    return scored.map((x) => ({ file_name: x.t.file_name, text: x.t.text, similarity: x.sim, chunk_id: x.t.chunk_id }));
+  });
+
+  // 4) GPT 요약 (캐시 재개)
+  const cache = existsSync(CACHE) ? JSON.parse(readFileSync(CACHE, "utf8")) : {};
+  let done = 0;
+  for (let i = 0; i < slides.length; i += CONC) {
+    const batch = slides.slice(i, i + CONC);
+    await Promise.all(batch.map(async (s, j) => {
+      const idx = i + j;
+      if (cache[s.chunk_id]) return;
+      cache[s.chunk_id] = await summarize(s, matches[idx]);
+    }));
+    writeFileSync(CACHE, JSON.stringify(cache));
+    done = Math.min(i + CONC, slides.length);
+    console.log(`  요약 ${done}/${slides.length}`);
+  }
+
+  // 5) chunks.json 추가 (라벨러 보존, blowmoulder-* 만 교체)
+  const chunks = JSON.parse(readFileSync("data/chunks.json", "utf8"));
+  const keptChunks = chunks.filter((c) => !(String(c.file_id).startsWith("blowmoulder")));
+  const newChunks = keptChunks.concat(slides, trans);
+  writeFileSync("data/chunks.json", JSON.stringify(newChunks, null, 2));
+
+  // 6) slide-summaries.json 추가
+  const summ = JSON.parse(readFileSync("data/slide-summaries.json", "utf8"));
+  for (let i = 0; i < slides.length; i++) {
+    const s = slides[i]; const tops = matches[i];
+    summ[s.chunk_id] = {
+      summary: cache[s.chunk_id] || "",
+      sources: [...new Set(tops.map((t) => t.file_name))],
+      raw_transcripts: tops,
+    };
+  }
+  writeFileSync("data/slide-summaries.json", JSON.stringify(summ, null, 2));
+
+  console.log(`\n✅ 완료: pptx +${slides.length}, transcript +${trans.length}, summaries +${slides.length}`);
+  console.log(`chunks.json: ${chunks.length} → ${newChunks.length}`);
+}
+main().catch((e) => { console.error("실패:", e.message); process.exit(1); });

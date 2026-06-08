@@ -1,0 +1,3 @@
+data/manuals-raw
+data/*.BACKUP-*.json
+data/*.bak

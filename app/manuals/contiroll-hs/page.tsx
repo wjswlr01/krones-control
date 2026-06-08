@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { getAllManuals } from '@/lib/manuals'
+import { getManualsByGroup } from '@/lib/manuals'
 
 export default function ContirollHsPage() {
-  const manuals = getAllManuals()
+  const manuals = getManualsByGroup('labeler')
   return (
     <div className="flex-1 overflow-y-auto bg-background">
       <div className="max-w-[1200px] mx-auto px-8 py-8">
