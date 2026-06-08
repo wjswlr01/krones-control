@@ -30,7 +30,7 @@ async function embedQuery(text: string): Promise<number[] | null> {
   } catch { return null }
 }
 
-async function generateAnswer(question: string, contexts: any[]): Promise<string> {
+async function generateAnswer(question: string, contexts: any[], lowRelevance: boolean): Promise<string> {
   const contextText = contexts.map((c, i) => `[사례 ${i+1}] (유사도 ${Math.round((c.similarity ?? 0) * 100)}%) ${c.title}\n- 공장/공정: ${c.factory}, ${c.target_process || '미지정'}\n- 설비: ${c.equipment || '미지정'}\n- 발생 원인: ${c.cause}\n- 조치 사항: ${c.action}`).join('\n\n')
 
   const systemPrompt = `당신은 Krones 라벨러 및 음료 제조 설비 전문가입니다. 아래는 사용자 질문과 임베딩 유사도로 검색된 과거 사례들이며, 유사도가 높아도 실제 설비/공정이 질문과 다를 수 있습니다.
@@ -39,6 +39,11 @@ async function generateAnswer(question: string, contexts: any[]): Promise<string
 2. 검색된 사례가 그 설비/공정과 일치하고 충분히 관련될 때만 사례 기반으로 답하세요.
 3. 사례가 질문과 무관하거나(설비/공정 불일치) 유사도가 낮으면, 억지로 인용하지 말고 '과거 사례 데이터에서 정확히 일치하는 건을 찾지 못했습니다'라고 명확히 밝힌 뒤, 일반 설비 지식으로 신중히 안내하세요. 이때 해당 증상이 보통 어느 설비/공정에서 발생하는지 함께 설명하세요.
 4. 추측을 사실처럼 단정하지 마세요.
+- 이 시스템의 사례 데이터는 라벨러 중심이지만, 사용자 질문은 다른 설비(블로워/성형, 필러/주입기, 캡퍼 등)일 수 있습니다. 데이터 맥락에 끌려가 무조건 라벨러로 답하지 마세요. 증상에 맞는 실제 설비/공정을 객관적으로 판단하세요.
+- 검색된 사례가 질문과 관련 없으면(lowRelevance), 구체적인 부품명·수치·세부 진단을 단정하지 마세요. 확실하지 않은 내용은 '~일 수 있습니다', '~로 추정됩니다'처럼 불확실성을 명시하고, 모르는 것은 모른다고 하세요.
+- 사례 근거 없이 일반 지식으로 답할 때는, 답변 맨 앞에 다음 문구를 반드시 포함하세요: '※ 아래는 과거 사례 근거가 아닌 일반 참고 정보이며, 실제와 다를 수 있습니다. 정확한 진단은 설비 매뉴얼과 담당 엔지니어 확인이 필요합니다.'
+- 근거 없는 긴 점검 리스트를 나열하기보다, 어느 설비/공정 문제인지 방향만 신중히 제시하고 전문가·매뉴얼 확인을 권하세요.
+${lowRelevance ? '\n[현재 검색 결과 판정] lowRelevance = true (질문과 직접 관련된 사례가 충분치 않음). 위의 lowRelevance 지침을 반드시 적용하세요: 부품명·수치 단정 금지, 불확실성 명시, 일반 참고 정보 disclaimer 문구를 답변 맨 앞에 포함, 방향 제시 후 전문가·매뉴얼 확인 권고.' : '\n[현재 검색 결과 판정] lowRelevance = false (관련 사례 있음). 사례 근거로 구체적으로 답하세요.'}
 
 답변 형식:
 - 구체적 조치 방법, 점검 포인트, 주의사항 위주
@@ -109,7 +114,7 @@ export async function POST(req: NextRequest) {
     .map(s => { const inc = incidentMap.get(s.id); return inc ? { ...inc, similarity: s.sim } : null })
     .filter(Boolean)
   try {
-    const answer = await generateAnswer(question, topContexts)
+    const answer = await generateAnswer(question, topContexts, lowRelevance)
     return NextResponse.json({ success: true, data: { answer, similar, lowRelevance } })
   } catch (e) {
     console.error('[incident-ai-search] OpenAI error:', e)

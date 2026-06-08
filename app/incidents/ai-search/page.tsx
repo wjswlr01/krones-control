@@ -131,7 +131,14 @@ export default function AiSearchPage() {
         {answer && (
           <div className="bg-tertiary-fixed/40 border-l-4 border-tertiary-container rounded-r-xl p-6 mb-8 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-headline text-[18px] font-bold text-on-tertiary-container flex items-center gap-2">🤖 AI 답변</h2>
+              <h2 className="font-headline text-[18px] font-bold text-on-tertiary-container flex items-center gap-2 flex-wrap">
+                🤖 AI 답변
+                {lowRelevance && (
+                  <span className="text-[11px] font-semibold text-tertiary bg-tertiary-fixed/70 border border-tertiary-container/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    💡 일반 참고 · 사례 근거 아님
+                  </span>
+                )}
+              </h2>
               <button
                 onClick={() => {
                   setQuestion(''); setAnswer(''); setSimilar([]); setLowRelevance(false)
