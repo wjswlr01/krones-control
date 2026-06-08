@@ -4,9 +4,10 @@ import embeddingsData from '@/data/incident-embeddings.json'
 
 export const maxDuration = 60
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? ''        // 임베딩(검색) 전용 — 유지
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? ''        // 답변 생성 전용
-const EMBED_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent'
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? ''        // 임베딩(검색) + 답변 생성 공용
+const EMBED_URL = 'https://api.openai.com/v1/embeddings'
+const EMBED_MODEL = 'text-embedding-3-small'                   // 문서 인덱스와 동일 모델
+const EMBED_DIM = 1536
 
 const incidents = incidentsData as any[]
 const embeddings = embeddingsData as Record<string, number[]>
@@ -64,14 +65,14 @@ async function classifyQuestionEquipment(question: string): Promise<string[]> {
 
 async function embedQuery(text: string): Promise<number[] | null> {
   try {
-    const res = await fetch(`${EMBED_URL}?key=${GEMINI_API_KEY}`, {
+    const res = await fetch(EMBED_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: { parts: [{ text }] }, taskType: 'RETRIEVAL_QUERY' })
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: EMBED_MODEL, input: text, dimensions: EMBED_DIM })
     })
     if (!res.ok) return null
     const data = await res.json()
-    return data?.embedding?.values ?? null
+    return data?.data?.[0]?.embedding ?? null
   } catch { return null }
 }
 
@@ -133,10 +134,9 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, temperature 
 export async function POST(req: NextRequest) {
   const { question } = await req.json().catch(() => ({}))
   if (!question?.trim()) return NextResponse.json({ success: false, error: { message: '질문을 입력하세요.' } }, { status: 400 })
-  if (!GEMINI_API_KEY) return NextResponse.json({ success: false, error: { message: 'API 키 미설정' } }, { status: 500 })
   if (!OPENAI_API_KEY) return NextResponse.json({ success: false, error: { message: 'API 키 미설정' } }, { status: 500 })
 
-  // 임베딩(Gemini)과 질문 설비분류(GPT)는 독립 — 병렬 처리
+  // 임베딩(OpenAI)과 질문 설비분류(GPT)는 독립 — 병렬 처리
   const [qEmb, queryCats] = await Promise.all([
     embedQuery(question),
     classifyQuestionEquipment(question),
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
     return { id: inc.id, title: inc.title, factory: inc.factory, equipment: inc.equipment, downtime_min: inc.downtime_min, is_best_practice: inc.is_best_practice, similarity: s.sim }
   }).filter(Boolean)
 
-  const RELEVANCE_THRESHOLD = 0.68
+  const RELEVANCE_THRESHOLD = 0.35   // OpenAI text-embedding-3-small 스케일 보정 (관련 0.42+, 무관 ~0.30)
   const topSim = scored[0]?.sim ?? 0
   const cosineLow = topSim < RELEVANCE_THRESHOLD
 

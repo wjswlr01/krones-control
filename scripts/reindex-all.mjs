@@ -17,8 +17,9 @@ const CONFIG = {
   SOURCE_FILE: "./data/incidents.json",
   OUTPUT_FILE: "./data/incident-embeddings.rebuild.json", // 완료 후 라이브 파일과 swap
 
-  CONCURRENCY: 3,        // 429 잦으면 1로 낮출 것 (백오프가 받쳐줌)
-  MAX_RETRY: 5,
+  CONCURRENCY: 1,        // 429 회피 — 3단계에서 1+딜레이로 무사고 완주 확인
+  DELAY_MS: 1100,        // 요청 간 간격 (~54 RPM, 분당 한도 보호)
+  MAX_RETRY: 7,
   CHECKPOINT_EVERY: 100, // N건마다 디스크 저장 (재개 지점)
 };
 
@@ -72,7 +73,9 @@ async function embedDoc(text) {
       return v;
     }
     if (res.status === 429 || res.status >= 500) {
-      await sleep(2 ** attempt * 1000);
+      const wait = Math.min(2 ** attempt * 1000, 32000);
+      console.warn(`  ${res.status} — ${wait}ms 후 재시도 (${attempt + 1}/${CONFIG.MAX_RETRY})`);
+      await sleep(wait);
       continue;
     }
     throw new Error(`임베딩 실패 ${res.status}: ${await res.text()}`);
@@ -102,6 +105,7 @@ async function main() {
       sinceCk = 0;
       console.log(`  체크포인트 ${Object.keys(index).length}/${rows.length} 저장`);
     }
+    if (i + CONFIG.CONCURRENCY < todo.length) await sleep(CONFIG.DELAY_MS);
   }
   save(index);
 
