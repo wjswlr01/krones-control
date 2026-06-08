@@ -6,3 +6,7 @@ node_modules/
 *.log
 
 .vercel
+
+# data backups (로컬 롤백용, 커밋 제외)
+data/*.BACKUP-*.json
+data/*.bak
