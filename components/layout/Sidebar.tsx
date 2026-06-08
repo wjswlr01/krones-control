@@ -21,18 +21,36 @@ function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: Men
   const isActive = item.href ? pathname === item.href : false
 
   if (hasChildren) {
+    const labelBlock = (
+      <>
+        <span className="material-symbols-outlined text-[20px] flex-shrink-0">{item.icon}</span>
+        <span className="flex-1 min-w-0">
+          <span className="text-[14px] block truncate">{item.label}</span>
+          {item.sublabel && <span className="text-[11px] text-secondary/70 block truncate font-normal">{item.sublabel}</span>}
+        </span>
+      </>
+    )
+    const rowClass = `${level === 0 ? 'font-bold text-on-background' : 'text-secondary'}`
     return (
       <div>
-        <button onClick={() => setOpen(!open)} data-tour={item.tourId}
-          className={`w-full flex items-center gap-3 py-2.5 pr-3 text-left hover:bg-surface-container-high rounded-lg transition-colors ${level === 0 ? 'font-bold text-on-background' : 'text-secondary'}`}
-          style={{ paddingLeft: `${0.75 + level * 0.5}rem` }}>
-          <span className="material-symbols-outlined text-[18px] text-secondary flex-shrink-0" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }}>expand_more</span>
-          <span className="material-symbols-outlined text-[20px] flex-shrink-0">{item.icon}</span>
-          <span className="flex-1 min-w-0">
-            <span className="text-[14px] block truncate">{item.label}</span>
-            {item.sublabel && <span className="text-[11px] text-secondary/70 block truncate font-normal">{item.sublabel}</span>}
-          </span>
-        </button>
+        {item.href ? (
+          // href + children: 셰브론은 접기/펼치기, 라벨은 페이지 이동
+          <div className={`flex items-center rounded-lg hover:bg-surface-container-high transition-colors ${rowClass}`} style={{ paddingLeft: `${0.75 + level * 0.5}rem` }}>
+            <button onClick={() => setOpen(!open)} aria-label="펼치기/접기" className="py-2.5 pr-1 flex-shrink-0">
+              <span className="material-symbols-outlined text-[18px] text-secondary" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }}>expand_more</span>
+            </button>
+            <Link href={item.href} data-tour={item.tourId} className={`flex items-center gap-3 py-2.5 pr-3 flex-1 min-w-0 no-underline ${rowClass}`}>
+              {labelBlock}
+            </Link>
+          </div>
+        ) : (
+          <button onClick={() => setOpen(!open)} data-tour={item.tourId}
+            className={`w-full flex items-center gap-3 py-2.5 pr-3 text-left hover:bg-surface-container-high rounded-lg transition-colors ${rowClass}`}
+            style={{ paddingLeft: `${0.75 + level * 0.5}rem` }}>
+            <span className="material-symbols-outlined text-[18px] text-secondary flex-shrink-0" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }}>expand_more</span>
+            {labelBlock}
+          </button>
+        )}
         {open && item.children!.map((c, i) => <TreeItem key={i} item={c} level={level + 1} pathname={pathname} />)}
       </div>
     )
@@ -60,7 +78,7 @@ export default function Sidebar() {
   const menu: MenuItem[] = [
     { label: '홈', icon: 'home', href: '/' },
     {
-      label: '설비매뉴얼', icon: 'menu_book', tourId: 'manuals', defaultOpen: true,
+      label: '설비매뉴얼', icon: 'menu_book', tourId: 'manuals', href: '/manuals', defaultOpen: true,
       children: EQUIPMENT_GROUPS.map(g => {
         const groupManuals = getManualsByGroup(g.key)
         return {

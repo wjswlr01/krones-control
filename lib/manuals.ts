@@ -88,3 +88,4 @@ export const MANUALS: ManualMeta[] = [
 export const getManual = (id: string) => MANUALS.find(m => m.id === id)
 export const getAllManuals = () => MANUALS
 export const getManualsByGroup = (key: string) => MANUALS.filter(m => m.group === key)
+export const getEquipmentGroup = (key: string) => EQUIPMENT_GROUPS.find(g => g.key === key)
