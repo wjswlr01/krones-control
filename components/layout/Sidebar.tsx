@@ -2,19 +2,21 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { getAllManuals } from '@/lib/manuals'
+import { EQUIPMENT_GROUPS, getManualsByGroup } from '@/lib/manuals'
 import { useSidebar } from '@/contexts/SidebarContext'
 
 interface MenuItem {
   label: string
+  sublabel?: string  // 보조 라벨 (예: 영문 모델명) — 그룹 노드용
   icon: string  // Material Symbol name
   href?: string
   children?: MenuItem[]
   tourId?: string  // 온보딩 투어 타겟용 data-tour 값
+  defaultOpen?: boolean  // 펼침 기본값 (미지정 시 상위에서 전달된 값)
 }
 
 function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: MenuItem; level?: number; pathname: string; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const [open, setOpen] = useState(item.defaultOpen ?? defaultOpen)
   const hasChildren = item.children && item.children.length > 0
   const isActive = item.href ? pathname === item.href : false
 
@@ -25,8 +27,11 @@ function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: Men
           className={`w-full flex items-center gap-3 py-2.5 pr-3 text-left hover:bg-surface-container-high rounded-lg transition-colors ${level === 0 ? 'font-bold text-on-background' : 'text-secondary'}`}
           style={{ paddingLeft: `${0.75 + level * 0.5}rem` }}>
           <span className="material-symbols-outlined text-[18px] text-secondary flex-shrink-0" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s' }}>expand_more</span>
-          <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-          <span className="text-[14px] flex-1">{item.label}</span>
+          <span className="material-symbols-outlined text-[20px] flex-shrink-0">{item.icon}</span>
+          <span className="flex-1 min-w-0">
+            <span className="text-[14px] block truncate">{item.label}</span>
+            {item.sublabel && <span className="text-[11px] text-secondary/70 block truncate font-normal">{item.sublabel}</span>}
+          </span>
         </button>
         {open && item.children!.map((c, i) => <TreeItem key={i} item={c} level={level + 1} pathname={pathname} />)}
       </div>
@@ -45,21 +50,27 @@ function TreeItem({ item, level = 0, pathname, defaultOpen = true }: { item: Men
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const manuals = getAllManuals()
   const { isOpen, close } = useSidebar()
 
   if (pathname === '/login') return null
 
+  // 현재 보고 있는 매뉴얼 id (자동 펼침용)
+  const activeManualId = pathname.startsWith('/manual/') ? pathname.split('/')[2] : null
+
   const menu: MenuItem[] = [
     { label: '홈', icon: 'home', href: '/' },
     {
-      label: '설비매뉴얼', icon: 'menu_book', tourId: 'manuals',
-      children: [
-        {
-          label: 'Krones Contiroll HS', icon: 'factory',
-          children: manuals.map(m => ({ label: m.title, icon: 'description', href: `/manual/${m.id}/1` }))
+      label: '설비매뉴얼', icon: 'menu_book', tourId: 'manuals', defaultOpen: true,
+      children: EQUIPMENT_GROUPS.map(g => {
+        const groupManuals = getManualsByGroup(g.key)
+        return {
+          label: g.name,
+          sublabel: g.model,
+          icon: 'factory',
+          defaultOpen: groupManuals.some(m => m.id === activeManualId),  // 활성 매뉴얼 그룹만 펼침
+          children: groupManuals.map(m => ({ label: m.title, icon: 'description', href: `/manual/${m.id}/1` })),
         }
-      ]
+      }),
     },
     {
       label: '이상발생보고', icon: 'report_problem',
