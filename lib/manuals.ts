@@ -7,6 +7,7 @@ export const EQUIPMENT_GROUPS: EquipmentGroup[] = [
   { key: 'labeler',     name: '라벨러',  model: 'Krones Contiroll HS',  icon: '🏷️' },
   { key: 'blowmoulder', name: '제병기',  model: 'Blow Moulder C3 Pro',  icon: '🫙' },
   { key: 'packer',      name: '팩커',    model: 'Krones Variopac',      icon: '📦' },
+  { key: 'electric',    name: '전기',    model: '전기·제어 (전장/PLC/서보)', icon: '⚡' },
 ]
 
 export const MANUALS: ManualMeta[] = [
@@ -147,6 +148,43 @@ export const MANUALS: ManualMeta[] = [
     totalSlides: 14,
     fileName: '7.Variopac maintenance.pptx',
     group:    'packer',
+  },
+  // ── 전기 (전기·제어 / 전장·PLC·서보) ──
+  {
+    id:       'electric-01',
+    title:    '설비관리',
+    subtitle: '전장·제어 점검 및 유지보수 절차',
+    icon:     '🛠️',
+    totalSlides: 60,
+    fileName: '전기일반_01_설비관리 3.pptx',
+    group:    'electric',
+  },
+  {
+    id:       'electric-02',
+    title:    '설비이론',
+    subtitle: '전기·제어 구성 및 동작 원리',
+    icon:     '📐',
+    totalSlides: 121,
+    fileName: '전기일반_02 설비이론 3.pptx',
+    group:    'electric',
+  },
+  {
+    id:       'electric-03',
+    title:    '설비세팅',
+    subtitle: '파라미터·드라이브 설정 가이드',
+    icon:     '🎯',
+    totalSlides: 76,
+    fileName: '전기일반_03_설비셋팅 3.pptx',
+    group:    'electric',
+  },
+  {
+    id:       'electric-04',
+    title:    '트러블 TOP 13',
+    subtitle: '자주 발생하는 전기·제어 알람·고장 해결법',
+    icon:     '⚡',
+    totalSlides: 13,
+    fileName: '전기일반_04_설비 트러블 TOP 13.pptx',
+    group:    'electric',
   },
 ]
 
