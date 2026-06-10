@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import AnswerMarkdown from '@/components/AnswerMarkdown'
+import { CHAT_MODEL_LABEL } from '@/lib/ai-model'
 
 interface SimilarCase { id: string; title: string; factory: string; equipment: string; downtime_min: number; similarity: number; is_best_practice: boolean }
 interface ManualSource { chunk_id: string; file_id: string; slide: number; equipmentName: string; volumeTitle: string; slideTitle: string; summaryPreview: string; similarity: number }
@@ -155,8 +156,11 @@ export default function AiSearchClient({ count }: { count: number }) {
         <div className="flex items-start justify-between gap-3 mb-6 md:mb-8">
           <div className="text-center md:text-left flex-1">
             <div className="text-[44px] leading-none mb-2 md:hidden">🤖</div>
-            <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-2 flex items-center gap-3 justify-center md:justify-start">
-              <span className="hidden md:inline">🤖</span>AI 사례검색
+            <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 justify-center md:justify-start">
+              <span className="flex items-center gap-3"><span className="hidden md:inline">🤖</span>AI 사례검색</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary-container/15 text-primary text-[11px] md:text-[12px] font-semibold px-2.5 py-1 leading-none whitespace-nowrap">
+                <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>{CHAT_MODEL_LABEL}
+              </span>
             </h1>
             <p className="text-[14px] text-secondary">설비 이상발생 사례 {count.toLocaleString()}건에서 AI가 답을 찾아드립니다. 이어서 후속 질문도 가능합니다.</p>
           </div>
@@ -266,23 +270,17 @@ export default function AiSearchClient({ count }: { count: number }) {
 
         {/* 하단 고정 입력창 */}
         <div className="sticky bottom-0 mt-6 pt-2 pb-1 bg-gradient-to-t from-background via-background to-transparent">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 shadow-sm focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-2 pl-3 shadow-sm focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all flex items-end gap-2">
             <textarea value={question} onChange={e => setQuestion(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask() } }}
               placeholder={turns.length ? '이어서 후속 질문... (예: 그럼 조치 방법은?)' : '예: 어셉틱 충전부 넥 찍힘 현상 원인과 조치는?'}
               disabled={loading}
               rows={1}
-              className="w-full bg-transparent border-none focus:ring-0 text-[14px] text-on-background placeholder:text-outline resize-none max-h-[140px] min-h-[24px] outline-none" />
-            <div className="flex items-center justify-between border-t border-outline-variant pt-2 mt-2">
-              <span className="text-[12px] text-secondary flex items-center gap-1">
-                <span className="material-symbols-outlined text-[16px]">keyboard_return</span>
-                Enter 전송<span className="hidden sm:inline"> · Shift+Enter 줄바꿈</span>
-              </span>
-              <button onClick={() => ask()} disabled={loading || !question.trim()}
-                className="bg-primary text-on-primary px-5 py-2 rounded-full text-[13px] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm">
-                {loading ? '생성 중...' : <><span className="material-symbols-outlined text-[18px]">send</span>전송</>}
-              </button>
-            </div>
+              className="flex-1 bg-transparent border-none focus:ring-0 text-[14px] text-on-background placeholder:text-outline resize-none max-h-[140px] min-h-[24px] py-2 outline-none" />
+            <button onClick={() => ask()} disabled={loading || !question.trim()}
+              className="flex-shrink-0 bg-primary text-on-primary px-5 py-2 rounded-full text-[13px] font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm">
+              {loading ? '생성 중...' : <><span className="material-symbols-outlined text-[18px]">send</span>전송</>}
+            </button>
           </div>
         </div>
       </div>
