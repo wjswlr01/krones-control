@@ -114,62 +114,8 @@ async function embedQuery(text: string): Promise<number[] | null> {
 
 type Turn = { question: string; answer: string }
 
-// history → OpenAI 메시지 변환 (멀티턴 컨텍스트)
-function historyToMessages(history: Turn[]): { role: 'user' | 'assistant'; content: string }[] {
-  const msgs: { role: 'user' | 'assistant'; content: string }[] = []
-  for (const h of history.slice(-8)) {
-    if (h?.question) msgs.push({ role: 'user', content: h.question })
-    if (h?.answer) msgs.push({ role: 'assistant', content: h.answer })
-  }
-  return msgs
-}
-
-// ── 진단형 되묻기(triage) ────────────────────────────────────────────
-// 질문 정보가 충분한지 GPT가 판단. 부족하면 핵심 1~2개만 되물음(선택지 포함). 실패 시 fail-open(바로 답변).
+// 되묻기 응답 형태 (다단계 되묻기는 POST에서 결정론적으로 판단: 후보 갈림 → 라인 → 공정).
 type Triage = { needsClarification: boolean; clarifyingQuestion: string; clarifyOptions: string[] }
-const NO_CLARIFY: Triage = { needsClarification: false, clarifyingQuestion: '', clarifyOptions: [] }
-
-async function triageQuestion(question: string, history: Turn[]): Promise<Triage> {
-  if (!OPENAI_API_KEY) return NO_CLARIFY
-  const LINE_OPTS = LINE_GROUPS.join(' / ')                          // 8개 라인
-  const PROC_OPTS = PROCESS_CHIPS.map(p => p.label).join(' / ')      // 공정/설비
-  const sys = `당신은 음료 생산라인(롯데칠성) 설비 트러블슈팅 상담의 1차 분류기입니다. 사례 데이터는 라인(workplace)과 공정으로 검색을 좁힐수록 정확합니다. 작업자 질문이 정확한 검색에 충분한지 판단하세요.
-
-검색 정확도를 높이는 핵심 정보 3가지: ①라인(${LINE_OPTS}) ②공정/설비(${PROC_OPTS}) ③증상.
-
-[충분(sufficient=true)] 다음을 모두 만족하면 충분 → 바로 답변:
-- ②공정/설비를 추정할 수 있음 (명시되거나 증상에서 유추됨. 예: '필름 컷팅·컷팅 불량'=포장/라벨링, '라벨 밀림'=라벨링, '캡·DMC·마킹 불량'=주입·캡핑, '서보 알람'=전기). 카테고리 1~2개로 좁혀지면 충분.
-- ③구체적 증상 단어가 있음 (불량/끊김/밀림/안붙음/걸림/누수/정지/알람/소음 등)
-- ①라인은 없어도 됨(있으면 더 정확). 공정·설비가 추정되면 라인은 굳이 되묻지 말 것.
-
-[되묻기(sufficient=false) — 꼭 필요할 때만, 남발 금지]
-- 공정·설비를 전혀 추정할 수 없고 증상도 막연할 때만(예: "설비가 안 돼요", "라인에 문제 있어요", "라벨러가 이상해요"):
-  → 우선 "어떤 라인에서 발생했나요?" 로 되묻고 options 는 라인 8종으로: ${JSON.stringify(LINE_GROUPS)}
-- 라인은 알지만 공정/설비가 모호하면: "어떤 공정/설비인가요?" options 는 ${JSON.stringify(PROCESS_CHIPS.map(p => p.label))}
-- 한 번에 1가지만 자연스러운 문장으로. 이전 대화에서 이미 준 정보는 다시 묻지 말 것.
-- 사용자가 '그냥 답해줘/모르겠다/아무거나' 취지면 sufficient=true.
-
-[판단 예시]
-- 충분: "팩커 필름 끊김", "컷팅 불량 원인"(=포장/라벨링), "마킹 불량"(=주입·캡핑), "캡 토크 부족", "서보 알람", "탄산캔라인 포장기 컷팅 불량"
-- 되묻기: "설비가 안 돼요"(라인 되묻기), "라벨러가 이상해요"(증상 막연 → 라인/증상 되묻기)
-
-반드시 JSON만 출력(설명 금지):
-{"sufficient": true}
-또는 {"sufficient": false, "question": "되물을 한국어 질문", "options": ["보기1","보기2"]}`
-  try {
-    const messages = [{ role: 'system' as const, content: sys }, ...historyToMessages(history), { role: 'user' as const, content: question }]
-    const raw = await callOpenAIMessages(messages, 0)
-    const m = raw.match(/\{[\s\S]*\}/)
-    const p = m ? JSON.parse(m[0]) : null
-    if (!p || p.sufficient === true) return NO_CLARIFY
-    const q = String(p.question ?? '').trim()
-    if (!q) return NO_CLARIFY                                   // 질문 문장 없으면 그냥 답변
-    const opts = Array.isArray(p.options) ? p.options.map((o: any) => String(o).trim()).filter(Boolean).slice(0, 6) : []
-    return { needsClarification: true, clarifyingQuestion: q, clarifyOptions: opts }
-  } catch {
-    return NO_CLARIFY                                            // fail-open: 막히면 답변 진행
-  }
-}
 
 async function generateAnswer(question: string, contexts: any[], manualCtx: ManualSource[], lowRelevance: boolean, history: Turn[] = [], scopeNote = ''): Promise<string> {
   const contextText = contexts.length
@@ -259,52 +205,61 @@ export async function POST(req: NextRequest) {
   if (!question?.trim()) return NextResponse.json({ success: false, error: { message: '질문을 입력하세요.' } }, { status: 400 })
   if (!OPENAI_API_KEY) return NextResponse.json({ success: false, error: { message: 'API 키 미설정' } }, { status: 500 })
 
-  // 되묻기 루프 방지: 직전 turn이 이미 되물음이었거나, 사용자가 '바로 답해줘' 취지면 triage 건너뛰고 답변
+  // 되묻기 답(칩) 직후 turn 식별 + 루프 상한(최대 2단계: 라인→공정) + 사용자 즉답 요청
   const recentlyClarified = rawHistory.length > 0 && rawHistory[rawHistory.length - 1]?.clarify === true
+  const clarifyCount = rawHistory.filter((h: any) => h?.clarify === true).length
   const wantsDirectAnswer = /그냥\s*답|바로\s*답|빨리\s*답|모르겠|몰라|아무거나|상관없|just answer/i.test(question)
-  const skipTriage = recentlyClarified || wantsDirectAnswer
+  const forceAnswer = wantsDirectAnswer || clarifyCount >= 2
 
   // 검색용 임베딩 쿼리: 되묻기 누적 대화 보정 위해 최근 질문 2개 + 현재 질문 결합
   const embedInput = [...history.slice(-2).map(h => h.question), question].join(' ').trim()
 
-  // 임베딩 + 설비분류 + 진단형 되묻기 판단을 병렬 처리(충분한 질문일 때 지연 최소화).
-  const [qEmb, queryCats, triage] = await Promise.all([
+  const [qEmb, queryCats] = await Promise.all([
     embedQuery(embedInput),
     classifyQuestionEquipment(question),
-    skipTriage ? Promise.resolve(NO_CLARIFY) : triageQuestion(question, history),
   ])
   if (!qEmb) return NextResponse.json({ success: false, error: { message: '임베딩 생성 실패' } }, { status: 500 })
 
-  // ── 후보 카테고리 산출 (GPT 우선, 비면 키워드). 후보가 2개 이상 갈리면 그 후보를 직접 되묻기 ──
+  // ── 누적 대화에서 (A)라인 (B)공정/설비 카테고리 추출 ──
+  const convText = [...history.map(h => h.question), question].join(' ')
   const gptCats = queryCats.filter(c => c !== 'etc')
   const kwNow = classifyByKeywords(question).filter(c => c !== 'etc')
-  const candidateCats = [...new Set(gptCats.length ? gptCats : kwNow)]
+  const candidateCats = [...new Set(gptCats.length ? gptCats : kwNow)]   // 현재 질문의 설비 후보(2개 이상이면 후보 되묻기)
 
-  let effTriage = triage
-  if (!skipTriage && candidateCats.length >= 2) {
-    // 같은 증상이 여러 설비 후보로 갈림(예: '컷팅'→포장+라벨링) → 단정 말고 후보를 선택지로 제시
-    effTriage = {
-      needsClarification: true,
-      clarifyingQuestion: '여러 설비에서 발생할 수 있는 증상입니다. 어느 설비/공정인가요?',
-      clarifyOptions: candidateCats.map(c => CANDIDATE_LABELS[c] || CATEGORY_LABELS[c] || c),
+  const qLine = detectLineFromText(convText)
+  const lineKnown = !!qLine
+  // 공정/설비 신호: 순수 라인명(칩 답)은 공정으로 치지 않음 — '어셉틱' 등 라인명이 카테고리 키워드와 겹쳐 새는 것 방지.
+  const isLineLabel = (t: string) => (LINE_GROUPS as readonly string[]).includes(String(t).trim())
+  const processScan = [...history.map(h => h.question), question].filter(t => !isLineLabel(t)).join(' ')
+  const processCats = [...new Set([
+    ...(isLineLabel(question) ? [] : gptCats),
+    ...classifyByKeywords(processScan).filter(c => c !== 'etc'),
+  ])]
+  const processKnown = processCats.length >= 1
+
+  // ── 다단계 되묻기: ①후보 갈림 → ②라인 → ③공정. "라인만으로 답" 금지(공정 단위까지 좁혀야 답) ──
+  let clarify: Triage | null = null
+  if (!forceAnswer) {
+    if (candidateCats.length >= 2) {
+      // 같은 증상이 여러 설비 후보로 갈림(예: '컷팅'→포장+라벨링) → 후보를 직접 선택지로
+      clarify = { needsClarification: true, clarifyingQuestion: '여러 설비에서 발생할 수 있는 증상입니다. 어느 설비/공정인가요?', clarifyOptions: candidateCats.map(c => CANDIDATE_LABELS[c] || CATEGORY_LABELS[c] || c) }
+    } else if (!processKnown && !lineKnown) {
+      // 광역 질문(증상·공정 단서 없음, 예 '설비가 안돌아') → 라인부터
+      clarify = { needsClarification: true, clarifyingQuestion: '어떤 라인에서 발생했나요?', clarifyOptions: [...LINE_GROUPS] }
+    } else if (!processKnown && lineKnown) {
+      // 라인은 확보됐으나 공정/설비가 여전히 불명확 → 임의 단정 말고 공정 한 단계 더 되묻기
+      clarify = { needsClarification: true, clarifyingQuestion: `${qLine} 라인에서 어떤 공정의 문제인가요?`, clarifyOptions: PROCESS_CHIPS.map(p => p.label) }
     }
   }
-
-  // 정보 부족/모호 → 검색·단정 답변 보류하고 되물음
-  if (effTriage.needsClarification) {
-    console.log('[ai-search] q=%j → CLARIFY %j opts=%j (candidates=%j)', question, effTriage.clarifyingQuestion, effTriage.clarifyOptions, candidateCats)
+  if (clarify) {
+    console.log('[ai-search] q=%j → CLARIFY %j opts=%j (line=%j procKnown=%s cand=%j)', question, clarify.clarifyingQuestion, clarify.clarifyOptions, qLine, processKnown, candidateCats)
     return NextResponse.json({ success: true, data: {
-      needsClarification: true,
-      clarifyingQuestion: effTriage.clarifyingQuestion,
-      clarifyOptions: effTriage.clarifyOptions,
+      needsClarification: true, clarifyingQuestion: clarify.clarifyingQuestion, clarifyOptions: clarify.clarifyOptions,
       answer: '', similar: [], manualSources: [], lowRelevance: false,
     } })
   }
 
   // ── 라인/공정(카테고리) 기반 사례 사전 필터 → 부분집합에서 임베딩 top-K ──
-  // 누적 대화(되묻기 답 포함)에서 라인·카테고리 추출. equipment 빈값이어도 workplace(라인)로 판정.
-  const convText = [...history.map(h => h.question), question].join(' ')
-  const qLine = detectLineFromText(convText)
   // 칩으로 막 좁힌 turn(recentlyClarified)이면 현재 질문의 카테고리만 사용(과거 모호 카테고리 무시 → 정확히 필터).
   const qCatsSpecific = recentlyClarified
     ? [...new Set(kwNow.length ? kwNow : gptCats)]
