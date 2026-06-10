@@ -4,9 +4,40 @@ import Link from 'next/link'
 import AnswerMarkdown from '@/components/AnswerMarkdown'
 
 interface SimilarCase { id: string; title: string; factory: string; equipment: string; downtime_min: number; similarity: number; is_best_practice: boolean }
-interface Turn { question: string; answer: string; similar: SimilarCase[]; lowRelevance: boolean }
+interface ManualSource { chunk_id: string; file_id: string; slide: number; equipmentName: string; volumeTitle: string; slideTitle: string; summaryPreview: string; similarity: number }
+interface Turn { question: string; answer: string; similar: SimilarCase[]; manualSources: ManualSource[]; lowRelevance: boolean; needsClarification?: boolean; clarifyingQuestion?: string; clarifyOptions?: string[] }
 
 const STORAGE_KEY = 'ai-search-thread'
+
+function ManualList({ sources }: { sources: ManualSource[] }) {
+  if (!sources || sources.length === 0) return null
+  return (
+    <details className="mt-3 group/manuals" open>
+      <summary className="cursor-pointer list-none flex items-center gap-1.5 text-[12px] font-semibold text-secondary hover:text-primary transition-colors">
+        <span className="material-symbols-outlined text-[16px] transition-transform group-open/manuals:rotate-90">chevron_right</span>
+        📘 관련 교육자료 {sources.length}건
+      </summary>
+      <div className="mt-2 space-y-2">
+        {sources.map(m => (
+          <Link key={m.chunk_id} href={`/manual/${m.file_id}/${m.slide}`}
+            className="block bg-surface-container-lowest border border-outline-variant rounded-lg p-4 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] transition-all no-underline">
+            <div className="flex items-start justify-between mb-1.5 gap-3">
+              <h3 className="text-[13px] font-bold text-on-background flex-1">{m.slideTitle || m.volumeTitle || '교육자료'}</h3>
+              <span className="bg-primary-container/15 text-primary text-[10px] font-semibold px-2 py-0.5 rounded flex-shrink-0">유사도 {Math.round(m.similarity * 100)}%</span>
+            </div>
+            <div className="flex flex-wrap gap-3 text-[11px] text-secondary mb-2">
+              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">precision_manufacturing</span>{m.equipmentName}</span>
+              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">menu_book</span>{m.volumeTitle}</span>
+              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">tag</span>슬라이드 {m.slide}</span>
+            </div>
+            {m.summaryPreview && <p className="text-[11.5px] text-on-surface-variant leading-snug line-clamp-2">{m.summaryPreview}…</p>}
+            <span className="mt-2 inline-flex items-center gap-0.5 text-[11px] text-primary font-medium">슬라이드 보기<span className="material-symbols-outlined text-[14px]">arrow_forward</span></span>
+          </Link>
+        ))}
+      </div>
+    </details>
+  )
+}
 
 function CaseList({ similar, lowRelevance }: { similar: SimilarCase[]; lowRelevance: boolean }) {
   if (!similar || similar.length === 0) return null
@@ -67,7 +98,10 @@ export default function AiSearchClient({ count }: { count: number }) {
     const query = (q ?? question).trim()
     if (!query || loading) return
     setLoading(true); setPending(query); setQuestion(''); setError('')
-    const history = turns.map(t => ({ question: t.question, answer: t.answer }))
+    // 되묻기 turn은 answer 대신 clarifyingQuestion을 컨텍스트로 전달 + clarify 플래그(루프 방지)
+    const history = turns.map(t => t.needsClarification
+      ? { question: t.question, answer: t.clarifyingQuestion ?? '', clarify: true }
+      : { question: t.question, answer: t.answer })
     try {
       const res = await fetch('/api/incident-ai-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -75,7 +109,11 @@ export default function AiSearchClient({ count }: { count: number }) {
       })
       const json = await res.json()
       if (json.success) {
-        const turn: Turn = { question: query, answer: json.data.answer, similar: json.data.similar ?? [], lowRelevance: !!json.data.lowRelevance }
+        const d = json.data
+        const turn: Turn = d.needsClarification
+          ? { question: query, answer: '', similar: [], manualSources: [], lowRelevance: false,
+              needsClarification: true, clarifyingQuestion: d.clarifyingQuestion ?? '', clarifyOptions: d.clarifyOptions ?? [] }
+          : { question: query, answer: d.answer, similar: d.similar ?? [], manualSources: d.manualSources ?? [], lowRelevance: !!d.lowRelevance }
         setTurns(prev => {
           const next = [...prev, turn]
           try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
@@ -154,19 +192,47 @@ export default function AiSearchClient({ count }: { count: number }) {
               <div className="flex justify-end">
                 <div className="bg-primary text-on-primary rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[85%] text-[14px] whitespace-pre-wrap leading-relaxed shadow-sm">{t.question}</div>
               </div>
-              {/* AI 답변 */}
-              <div className="bg-tertiary-fixed/40 border-l-4 border-tertiary-container rounded-r-xl p-5 shadow-sm">
-                <h2 className="font-headline text-[15px] font-bold text-on-tertiary-container flex items-center gap-2 flex-wrap mb-2">
-                  🤖 AI 답변
-                  {t.lowRelevance && (
-                    <span className="text-[11px] font-semibold text-tertiary bg-tertiary-fixed/70 border border-tertiary-container/40 px-2 py-0.5 rounded-full flex items-center gap-1">💡 일반 참고 · 사례 근거 아님</span>
+              {t.needsClarification ? (
+                /* 진단형 되묻기: 답변/사례카드 대신 추가 정보 요청 */
+                <div className="bg-primary-container/15 border-l-4 border-primary rounded-r-xl p-5 shadow-sm">
+                  <h2 className="font-headline text-[15px] font-bold text-primary flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-[18px]">help</span>좀 더 정확히 찾을게요
+                  </h2>
+                  <div className="text-[14px] text-on-background leading-relaxed mb-3">{t.clarifyingQuestion}</div>
+                  {t.clarifyOptions && t.clarifyOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {t.clarifyOptions.map(opt => {
+                        const isLast = i === turns.length - 1
+                        return (
+                          <button key={opt} onClick={() => ask(opt)} disabled={loading || !isLast}
+                            className="text-[13px] px-3.5 py-1.5 rounded-full border border-primary/40 text-primary bg-surface-container-lowest hover:bg-primary hover:text-on-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            {opt}
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
-                </h2>
-                <div className="text-[14px] text-on-surface-variant leading-relaxed">
-                  <AnswerMarkdown>{t.answer}</AnswerMarkdown>
+                  <p className="text-[11.5px] text-secondary mt-3 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">edit</span>
+                    직접 입력해도 됩니다. 바로 답을 원하면 “그냥 답해줘”라고 보내세요.
+                  </p>
                 </div>
-                <CaseList similar={t.similar} lowRelevance={t.lowRelevance} />
-              </div>
+              ) : (
+                /* AI 답변 */
+                <div className="bg-tertiary-fixed/40 border-l-4 border-tertiary-container rounded-r-xl p-5 shadow-sm">
+                  <h2 className="font-headline text-[15px] font-bold text-on-tertiary-container flex items-center gap-2 flex-wrap mb-2">
+                    🤖 AI 답변
+                    {t.lowRelevance && (
+                      <span className="text-[11px] font-semibold text-tertiary bg-tertiary-fixed/70 border border-tertiary-container/40 px-2 py-0.5 rounded-full flex items-center gap-1">💡 일반 참고 · 사례 근거 아님</span>
+                    )}
+                  </h2>
+                  <div className="text-[14px] text-on-surface-variant leading-relaxed">
+                    <AnswerMarkdown>{t.answer}</AnswerMarkdown>
+                  </div>
+                  <ManualList sources={t.manualSources} />
+                  <CaseList similar={t.similar} lowRelevance={t.lowRelevance} />
+                </div>
+              )}
             </div>
           ))}
 
@@ -178,7 +244,7 @@ export default function AiSearchClient({ count }: { count: number }) {
               </div>
               <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <span className="text-[13px] text-secondary">유사 사례 검색 + AI 답변 생성 중...</span>
+                <span className="text-[13px] text-secondary">질문 분석 중... (필요 시 추가 정보를 여쭤볼 수 있어요)</span>
               </div>
             </div>
           )}
