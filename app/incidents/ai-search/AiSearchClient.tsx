@@ -5,14 +5,14 @@ import AnswerMarkdown from '@/components/AnswerMarkdown'
 
 interface SimilarCase { id: string; title: string; factory: string; equipment: string; downtime_min: number; similarity: number; is_best_practice: boolean }
 interface ManualSource { chunk_id: string; file_id: string; slide: number; equipmentName: string; volumeTitle: string; slideTitle: string; summaryPreview: string; similarity: number }
-interface Turn { question: string; answer: string; similar: SimilarCase[]; manualSources: ManualSource[]; lowRelevance: boolean; needsClarification?: boolean; clarifyingQuestion?: string; clarifyOptions?: string[] }
+interface Turn { question: string; answer: string; similar: SimilarCase[]; manualSources: ManualSource[]; lowRelevance: boolean; needsClarification?: boolean; clarifyingQuestion?: string; clarifyOptions?: string[]; modelLabel?: string; embedModel?: string }
 
 const STORAGE_KEY = 'ai-search-thread'
 
 function ManualList({ sources }: { sources: ManualSource[] }) {
   if (!sources || sources.length === 0) return null
   return (
-    <details className="mt-3 group/manuals" open>
+    <details className="mt-3 group/manuals">
       <summary className="cursor-pointer list-none flex items-center gap-1.5 text-[12px] font-semibold text-secondary hover:text-primary transition-colors">
         <span className="material-symbols-outlined text-[16px] transition-transform group-open/manuals:rotate-90">chevron_right</span>
         📘 관련 교육자료 {sources.length}건
@@ -113,7 +113,7 @@ export default function AiSearchClient({ count }: { count: number }) {
         const turn: Turn = d.needsClarification
           ? { question: query, answer: '', similar: [], manualSources: [], lowRelevance: false,
               needsClarification: true, clarifyingQuestion: d.clarifyingQuestion ?? '', clarifyOptions: d.clarifyOptions ?? [] }
-          : { question: query, answer: d.answer, similar: d.similar ?? [], manualSources: d.manualSources ?? [], lowRelevance: !!d.lowRelevance }
+          : { question: query, answer: d.answer, similar: d.similar ?? [], manualSources: d.manualSources ?? [], lowRelevance: !!d.lowRelevance, modelLabel: d.modelLabel, embedModel: d.embedModel }
         setTurns(prev => {
           const next = [...prev, turn]
           try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
@@ -231,6 +231,12 @@ export default function AiSearchClient({ count }: { count: number }) {
                   </div>
                   <ManualList sources={t.manualSources} />
                   <CaseList similar={t.similar} lowRelevance={t.lowRelevance} />
+                  {t.modelLabel && (
+                    <div className="mt-3 pt-2 border-t border-outline-variant/40 text-[10.5px] text-secondary/60 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[12px]">bolt</span>
+                      {t.modelLabel}으로 생성{t.embedModel && <span className="text-secondary/40"> · 검색 {t.embedModel}</span>}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

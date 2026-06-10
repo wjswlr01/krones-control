@@ -12,6 +12,10 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? ''        // 임베딩(검�
 const EMBED_URL = 'https://api.openai.com/v1/embeddings'
 const EMBED_MODEL = 'text-embedding-3-small'                   // 문서 인덱스와 동일 모델
 const EMBED_DIM = 1536
+const CHAT_MODEL = 'gpt-5.4-mini'                              // 답변·분류·되묻기 생성 공용 (단일 소스)
+// 표시용 라벨 매핑 (모델 교체 시 여기만 수정하면 UI 자동 반영). 미등록 모델은 raw 문자열 그대로 노출.
+const MODEL_LABELS: Record<string, string> = { 'gpt-5.4-mini': 'GPT-5.4 Mini' }
+const modelLabel = (m: string) => MODEL_LABELS[m] ?? m
 
 const incidents = incidentsData as any[]
 const embeddings = embeddingsData as Record<string, number[]>
@@ -226,7 +230,7 @@ async function callOpenAIMessages(messages: { role: 'system' | 'user' | 'assista
       'Authorization': `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'gpt-5.4-mini',
+      model: CHAT_MODEL,
       messages,
       temperature,
     }),
@@ -326,7 +330,7 @@ export async function POST(req: NextRequest) {
     manualSources.length, (manualScored[0]?.sim ?? 0).toFixed(3))
   try {
     const answer = await generateAnswer(question, topContexts, manualSources, lowRelevance, history)
-    return NextResponse.json({ success: true, data: { answer, similar, manualSources, lowRelevance, needsClarification: false } })
+    return NextResponse.json({ success: true, data: { answer, similar, manualSources, lowRelevance, needsClarification: false, model: CHAT_MODEL, modelLabel: modelLabel(CHAT_MODEL), embedModel: EMBED_MODEL } })
   } catch (e) {
     console.error('[incident-ai-search] OpenAI error:', e)
     return NextResponse.json({ success: false, error: { message: '답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } }, { status: 503 })
