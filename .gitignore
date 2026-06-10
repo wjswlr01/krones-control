@@ -10,3 +10,6 @@ node_modules/
 # data backups (로컬 롤백용, 커밋 제외)
 data/*.BACKUP-*.json
 data/*.bak
+
+# 원본 교육자료 (PPTX/녹취록·임시 PDF, ~300MB DRM 원본 — 커밋·배포 제외)
+data/manuals-raw/

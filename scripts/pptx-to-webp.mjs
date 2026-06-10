@@ -22,10 +22,13 @@ const WEBP_Q = 82;
 const RENDER_SCALE = 2;  // pdfjs 렌더 배율(원본 크게 뽑고 리사이즈 → 선명)
 
 const JOBS = [
-  ["Blow Moulder_01 설비관리_C3 Pro.pptx", "blowmoulder-01"],
-  ["Blow Moulder_02 설비이론_C3 Pro.pptx", "blowmoulder-02"],
-  ["Blow Moulder_03 설비세팅_C3 Pro.pptx", "blowmoulder-03"],
-  ["Blow Moulder_04 설비트러블_C3 Pro.pptx", "blowmoulder-04"],
+  ["bariopac/1.Variopac 설비 이론.pptx", "packer-01"],
+  ["bariopac/2.Variopac 설비세팅 Zenon.pptx", "packer-02"],
+  ["bariopac/3.Variopac sensors.pptx", "packer-03"],
+  ["bariopac/4.Variopac 설비 관리.pptx", "packer-04"],
+  ["bariopac/5.Variopac Parameter.pptx", "packer-05"],
+  ["bariopac/6.Variopac 설비 Trouble shoot.pptx", "packer-06"],
+  ["bariopac/7.Variopac maintenance.pptx", "packer-07"],
 ];
 
 function pptxToPdf(pptxAbs) {

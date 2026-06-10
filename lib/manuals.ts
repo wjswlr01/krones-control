@@ -6,6 +6,7 @@ export interface EquipmentGroup { key: string; name: string; model: string; icon
 export const EQUIPMENT_GROUPS: EquipmentGroup[] = [
   { key: 'labeler',     name: '라벨러',  model: 'Krones Contiroll HS',  icon: '🏷️' },
   { key: 'blowmoulder', name: '제병기',  model: 'Blow Moulder C3 Pro',  icon: '🫙' },
+  { key: 'packer',      name: '팩커',    model: 'Krones Variopac',      icon: '📦' },
 ]
 
 export const MANUALS: ManualMeta[] = [
@@ -82,6 +83,70 @@ export const MANUALS: ManualMeta[] = [
     totalSlides: 13,
     fileName: 'Blow Moulder_04 설비트러블_C3 Pro.pptx',
     group:    'blowmoulder',
+  },
+  // ── 팩커 (Krones Variopac) ──
+  {
+    id:       'packer-01',
+    title:    '설비이론',
+    subtitle: '팩커 구조 및 작동 원리',
+    icon:     '📐',
+    totalSlides: 26,
+    fileName: '1.Variopac 설비 이론.pptx',
+    group:    'packer',
+  },
+  {
+    id:       'packer-02',
+    title:    '설비세팅',
+    subtitle: 'Zenon HMI 파라미터 조정 및 정렬 가이드',
+    icon:     '🎯',
+    totalSlides: 46,
+    fileName: '2.Variopac 설비세팅 Zenon.pptx',
+    group:    'packer',
+  },
+  {
+    id:       'packer-03',
+    title:    '센서',
+    subtitle: '센서 종류·위치 및 점검 방법',
+    icon:     '📡',
+    totalSlides: 14,
+    fileName: '3.Variopac sensors.pptx',
+    group:    'packer',
+  },
+  {
+    id:       'packer-04',
+    title:    '설비관리',
+    subtitle: '일일·주간·월간 점검 및 유지보수 절차',
+    icon:     '🛠️',
+    totalSlides: 44,
+    fileName: '4.Variopac 설비 관리.pptx',
+    group:    'packer',
+  },
+  {
+    id:       'packer-05',
+    title:    '파라미터',
+    subtitle: '주요 파라미터 설명 및 설정값',
+    icon:     '🔧',
+    totalSlides: 65,
+    fileName: '5.Variopac Parameter.pptx',
+    group:    'packer',
+  },
+  {
+    id:       'packer-06',
+    title:    '트러블슈팅',
+    subtitle: '자주 발생하는 알람·고장 해결법',
+    icon:     '⚡',
+    totalSlides: 15,
+    fileName: '6.Variopac 설비 Trouble shoot.pptx',
+    group:    'packer',
+  },
+  {
+    id:       'packer-07',
+    title:    '정비',
+    subtitle: '소모품 교체 및 정비 절차',
+    icon:     '🔩',
+    totalSlides: 14,
+    fileName: '7.Variopac maintenance.pptx',
+    group:    'packer',
   },
 ]
 
