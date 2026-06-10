@@ -9,9 +9,9 @@ export default function IncidentsHubPage() {
         <nav className="hidden md:flex items-center gap-2 text-[13px] text-secondary mb-6">
           <Link href="/" className="hover:text-primary no-underline">홈</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-          <span className="text-on-background font-semibold">이상발생보고</span>
+          <span className="text-on-background font-semibold">불가동 사례분석</span>
         </nav>
-        <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-4">이상발생보고</h1>
+        <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-4">불가동 사례분석</h1>
 
         {/* 모바일: 세로 통계 그리드 (글자별 줄바꿈 방지) */}
         <div className="grid grid-cols-3 gap-2 md:hidden bg-surface-container-low rounded-xl border border-outline-variant/50 p-3 mb-6">

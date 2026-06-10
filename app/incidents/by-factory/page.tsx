@@ -27,7 +27,7 @@ export default function ByFactoryPage() {
         <nav className="hidden md:flex items-center gap-2 text-[13px] text-secondary mb-6">
           <Link href="/" className="hover:text-primary no-underline">홈</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-          <Link href="/incidents" className="hover:text-primary no-underline">이상발생보고</Link>
+          <Link href="/incidents" className="hover:text-primary no-underline">불가동 사례분석</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
           <span className="text-on-background font-semibold">공장별 현황</span>
         </nav>

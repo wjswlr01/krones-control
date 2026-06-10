@@ -8,10 +8,10 @@ export default function ManualsPage() {
         <nav className="hidden md:flex items-center gap-2 text-[13px] text-secondary mb-6">
           <Link href="/" className="hover:text-primary no-underline transition-colors">홈</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-          <span className="text-on-background font-semibold">설비매뉴얼</span>
+          <span className="text-on-background font-semibold">교육자료</span>
         </nav>
-        <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-2">설비매뉴얼</h1>
-        <p className="text-[14px] text-secondary mb-6 md:mb-8">설비 종류를 선택하세요.</p>
+        <h1 className="font-headline text-[24px] md:text-[28px] font-bold text-on-background mb-2">교육자료</h1>
+        <p className="text-[14px] text-secondary mb-6 md:mb-8">설비별 교육자료를 선택하세요.</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
           {EQUIPMENT_GROUPS.map(g => {

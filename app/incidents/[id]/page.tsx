@@ -13,7 +13,7 @@ export default function IncidentDetailPage({ params }: { params: { id: string } 
           <nav className="flex items-center gap-2 text-[13px] text-secondary mb-6">
             <Link href="/" className="hover:text-primary no-underline">홈</Link>
             <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-            <Link href="/incidents" className="hover:text-primary no-underline">이상발생보고</Link>
+            <Link href="/incidents" className="hover:text-primary no-underline">불가동 사례분석</Link>
             <span className="material-symbols-outlined text-[16px]">chevron_right</span>
             <Link href="/incidents/list" className="hover:text-primary no-underline">전체 목록</Link>
             <span className="material-symbols-outlined text-[16px]">chevron_right</span>

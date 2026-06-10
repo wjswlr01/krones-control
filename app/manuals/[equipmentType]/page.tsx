@@ -18,14 +18,14 @@ export default function EquipmentManualsPage({ params }: { params: { equipmentTy
         <nav className="hidden md:flex items-center gap-2 text-[13px] text-secondary mb-6">
           <Link href="/" className="hover:text-primary no-underline">홈</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-          <Link href="/manuals" className="hover:text-primary no-underline">설비매뉴얼</Link>
+          <Link href="/manuals" className="hover:text-primary no-underline">교육자료</Link>
           <span className="material-symbols-outlined text-[16px]">chevron_right</span>
           <span className="text-on-background font-semibold">{group.name}</span>
         </nav>
 
         {/* 뒤로가기: 모바일 */}
         <Link href="/manuals" className="md:hidden inline-flex items-center gap-1 text-[13px] text-secondary hover:text-primary no-underline mb-4">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>설비매뉴얼
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>교육자료
         </Link>
 
         <div className="flex items-center gap-3 mb-1">

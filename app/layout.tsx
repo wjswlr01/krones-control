@@ -7,8 +7,8 @@ import BottomNav from '@/components/layout/BottomNav'
 import { SidebarProvider } from '@/contexts/SidebarContext'
 
 export const metadata: Metadata = {
-  title:       'Krones Control · 라벨러 매뉴얼 시스템',
-  description: '롯데칠성 기술혁신팀 · 라벨러 매뉴얼 및 강의 노트 조회',
+  title:       'Krones Control · 교육자료 · 불가동 사례분석',
+  description: '롯데칠성 기술혁신팀 · 설비 교육자료 및 불가동 사례분석',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

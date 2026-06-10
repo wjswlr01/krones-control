@@ -7,15 +7,15 @@ const cards = [
     href: '/manuals',
     icon: 'menu_book',
     iconBox: 'bg-primary-container',
-    title: '설비매뉴얼',
-    desc: 'Krones 라벨러 정비·운영 매뉴얼과 강사 강의 노트',
+    title: '교육자료',
+    desc: 'Krones 라벨러·제병기·팩커·전기 교육자료와 강사 현장 노하우',
   },
   {
     href: '/incidents',
     icon: 'assignment',
     iconBox: 'bg-tertiary-container',
-    title: '이상발생보고',
-    desc: 'MES 기반 트러블 사례 2,145건 · 공장별 현황 + AI 검색',
+    title: '불가동 사례분석',
+    desc: 'MES 기반 불가동 사례 분석 · 공장별 현황 + AI 사례검색',
   },
 ]
 

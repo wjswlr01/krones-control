@@ -11,7 +11,7 @@ interface Tab {
 
 const tabs: Tab[] = [
   { href: '/', icon: 'home', label: '홈', match: p => p === '/' },
-  { href: '/manuals', icon: 'menu_book', label: '매뉴얼', match: p => p.startsWith('/manual') },
+  { href: '/manuals', icon: 'menu_book', label: '교육자료', match: p => p.startsWith('/manual') },
   { href: '/incidents/ai-search', icon: 'smart_toy', label: 'AI검색', match: p => p === '/incidents/ai-search' },
   { href: '/incidents/by-factory', icon: 'bar_chart', label: '현황', match: p => p === '/incidents/by-factory' },
 ]
