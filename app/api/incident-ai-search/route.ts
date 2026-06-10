@@ -6,6 +6,10 @@ import slideSummariesData from '@/data/slide-summaries.json'
 import chunksData from '@/data/chunks.json'
 import { getManual, getEquipmentGroup } from '@/lib/manuals'
 import { CHAT_MODEL, EMBED_MODEL, modelLabel } from '@/lib/ai-model'
+import {
+  classifyByKeywords, classifyCase, normalizeLine, detectLineFromText,
+  CATEGORY_KEYWORDS, CATEGORY_LABELS, LINE_GROUPS, PROCESS_CHIPS,
+} from '@/lib/incident-taxonomy'
 
 export const maxDuration = 60
 
@@ -56,38 +60,30 @@ function cosSim(a: number[], b: number[]): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb))
 }
 
-// ── 설비 카테고리 분류 (음료 생산라인) ──────────────────────────────
-// 주의: filler 의 '넥'은 labeler('넥라벨')와 겹치므로 bare '넥' 대신 병목/넥부만 사용
-const CATEGORY_KEYWORDS: Record<string, RegExp> = {
-  blower:    /프리폼|블로우|블로워|브로워|성형|몰드|blow|preform/i,
-  filler:    /필러|충전|충진|주입|어셉|어셉틱|asept|병목|넥부|액위|밸브|filler/i,
-  capper:    /캡퍼|캡핑|토크|뚜껑|capper|\bcap\b|씰러|시머|seamer/i,
-  labeler:   /라벨|라벨라|글루|롤러|스타휠|슬리브|sleeve|수축라벨|쉬링크|시링크|opp|label/i,
-  conveyor:  /컨베이어|conveyor|반송/i,
-  inspector: /비전|검사|inspect|vision|x.?ray|엑스레이/i,
-}
-
-function classifyByKeywords(text: string): string[] {
-  const cats = Object.entries(CATEGORY_KEYWORDS).filter(([, re]) => re.test(text || '')).map(([k]) => k)
-  return cats.length ? cats : ['etc']
-}
-
-// 사례 분류: 설비 필드가 더 신뢰도 높음 → 우선 사용, 미지정/불명확일 때만 제목으로 폴백
-// (제목의 '몰드' 등 단어가 라벨러 사례를 blower로 오분류하는 것을 방지)
-function classifyCase(c: { equipment?: string; title?: string }): string[] {
-  const byEq = c.equipment ? classifyByKeywords(c.equipment) : ['etc']
-  if (byEq[0] !== 'etc') return byEq
-  return classifyByKeywords(c.title || '')
-}
+// 설비 카테고리/라인 분류·정규화는 lib/incident-taxonomy 단일 소스 사용.
+// 사례별 (line, cats) 메타를 모듈 로드 시 1회 사전계산 (검색 필터용).
+const incidentLine = new Map<string, string | null>(incidents.map(i => [i.id, normalizeLine(i)]))
+const incidentCats = new Map<string, string[]>(incidents.map(i => [i.id, classifyCase(i)]))
 
 // 질문의 설비 카테고리를 GPT로 분류 (모호어는 문맥 판단). 실패 시 키워드 폴백.
 async function classifyQuestionEquipment(question: string): Promise<string[]> {
   if (!OPENAI_API_KEY) return classifyByKeywords(question)
-  const sys = `당신은 음료 생산라인 설비 분류기입니다. 작업자 질문이 어느 설비 카테고리의 문제인지 판단하세요.
-카테고리: blower(프리폼/블로우몰드/성형/몰드), filler(필러/충전/어셉틱/병목 넥/액위), capper(캡/뚜껑/토크), labeler(라벨/글루/롤러/스타휠/슬리브/수축라벨), conveyor(컨베이어), inspector(비전/검사), etc(그외/불명확)
+  const sys = `당신은 음료 생산라인 설비 분류기입니다. 작업자 질문이 어느 설비 카테고리(공정)의 문제인지 판단하세요.
+카테고리:
+- water(취수/지하수/용수/정수)
+- depalletizer(투입/디팔/공병·공캔 투입)
+- blower(제병/프리폼/블로우/성형/몰드)
+- filler(주입/충전/어셉틱/밀봉/캡퍼·캡핑·캡/시머/토크/DMC·코딩·마킹/액위/병목 넥)
+- labeler(라벨/글루/스타휠/슬리브/수축·OPP라벨/라벨 컷팅)
+- packer(포장/번들/랩핑/트레이/팩커/필름 컷팅)
+- palletizer(적재/파레트)
+- conveyor(컨베이어/반송/이송)
+- inspector(비전/검사/X-ray)
+- etc(그외/불명확)
 규칙:
 - 1개 이상 선택, 가장 가능성 높은 카테고리 위주.
-- 모호어 주의: '넥'은 넥라벨(labeler)일 수도, 병목 넥/넥찍힘(filler·blower 성형불량)일 수도 있으니 문맥으로 판단하세요.
+- '컷팅/필름 컷팅'은 보통 packer(포장 필름) 또는 labeler(라벨 컷팅). '캡·DMC·마킹·코딩 불량'은 filler.
+- 모호어 주의: '넥'은 넥라벨(labeler)일 수도, 병목 넥(filler)일 수도 있으니 문맥으로 판단.
 - 반드시 JSON만 출력: {"categories":["..."]}`
   try {
     const raw = await callOpenAI(sys, question, 0)
@@ -133,27 +129,31 @@ const NO_CLARIFY: Triage = { needsClarification: false, clarifyingQuestion: '', 
 
 async function triageQuestion(question: string, history: Turn[]): Promise<Triage> {
   if (!OPENAI_API_KEY) return NO_CLARIFY
-  const sys = `당신은 음료 생산라인(롯데칠성) 설비 트러블슈팅 상담의 1차 분류기입니다. 작업자 질문이 "과거 이상발생 사례 + 설비 교육자료" 검색으로 정확히 답하기에 정보가 충분한지 판단합니다.
+  const LINE_OPTS = LINE_GROUPS.join(' / ')                          // 8개 라인
+  const PROC_OPTS = PROCESS_CHIPS.map(p => p.label).join(' / ')      // 공정/설비
+  const sys = `당신은 음료 생산라인(롯데칠성) 설비 트러블슈팅 상담의 1차 분류기입니다. 사례 데이터는 라인(workplace)과 공정으로 검색을 좁힐수록 정확합니다. 작업자 질문이 정확한 검색에 충분한지 판단하세요.
 
-[충분(sufficient=true) 기준] 아래 2가지가 분명하면 충분:
-- 어떤 설비/부위인지 (라벨러/제병기(블로우몰더)/팩커/충전기/캡퍼/컨베이어/검사기 등) — 증상에서 명백히 유추되면 명시 안 돼도 OK
-- 구체적 증상·현상을 가리키는 단어가 하나라도 있는지 (불량/끊김/밀림/안 붙음/걸림/누수/정지/터짐/알람/소음/진동/마모 등)
-정황(타입체인지 후/특정 속도·제품)·알람코드는 있으면 좋지만 위 2개가 분명하면 없어도 충분. 증상이 다소 넓어도(예: "불량") 검색은 가능하므로 굳이 세부 유형까지 되묻지 마세요.
+검색 정확도를 높이는 핵심 정보 3가지: ①라인(${LINE_OPTS}) ②공정/설비(${PROC_OPTS}) ③증상.
+
+[충분(sufficient=true)] 다음을 모두 만족하면 충분 → 바로 답변:
+- ②공정/설비를 추정할 수 있음 (명시되거나 증상에서 유추됨. 예: '필름 컷팅·컷팅 불량'=포장/라벨링, '라벨 밀림'=라벨링, '캡·DMC·마킹 불량'=주입·캡핑, '서보 알람'=전기). 카테고리 1~2개로 좁혀지면 충분.
+- ③구체적 증상 단어가 있음 (불량/끊김/밀림/안붙음/걸림/누수/정지/알람/소음 등)
+- ①라인은 없어도 됨(있으면 더 정확). 공정·설비가 추정되면 라인은 굳이 되묻지 말 것.
+
+[되묻기(sufficient=false) — 꼭 필요할 때만, 남발 금지]
+- 공정·설비를 전혀 추정할 수 없고 증상도 막연할 때만(예: "설비가 안 돼요", "라인에 문제 있어요", "라벨러가 이상해요"):
+  → 우선 "어떤 라인에서 발생했나요?" 로 되묻고 options 는 라인 8종으로: ${JSON.stringify(LINE_GROUPS)}
+- 라인은 알지만 공정/설비가 모호하면: "어떤 공정/설비인가요?" options 는 ${JSON.stringify(PROCESS_CHIPS.map(p => p.label))}
+- 한 번에 1가지만 자연스러운 문장으로. 이전 대화에서 이미 준 정보는 다시 묻지 말 것.
+- 사용자가 '그냥 답해줘/모르겠다/아무거나' 취지면 sufficient=true.
 
 [판단 예시]
-- 충분(true): "제병 불량 원인", "팩커 필름 끊김 대처", "글루 롤러에 라벨이 말려요", "캡 토크 부족", "어셉틱 충전부 액위 불안정" → 설비/부위 + 증상 단어가 있음 → 바로 답변
-- 부족(false): "라벨러가 이상해요", "설비가 안 돼요", "문제가 생겼어요", "팩커 좀 봐줘" → 증상 단어 없이 막연함 → 되묻기
-
-[되묻기(sufficient=false)는 꼭 필요할 때만 — 남발 금지]
-- 위 '부족' 예시처럼 증상 단어가 전혀 없어 막연하거나, 설비·증상이 둘 다 불명확할 때만.
-- 부족한 핵심 항목 1~2개만 자연스러운 한 문장으로 되물으세요.
-- 가능하면 선택지(options) 3~5개 제시. 설비가 불명확하면 ["라벨러","제병기(블로우몰더)","팩커","충전기","기타"]; 증상이 막연하면 대표 증상 보기. 자유응답이 자연스러우면 options는 빈 배열.
-- 이전 대화에서 이미 설비/증상을 줬으면 sufficient=true.
-- 사용자가 '그냥 답해줘/모르겠다/아무거나' 취지면 sufficient=true.
+- 충분: "팩커 필름 끊김", "컷팅 불량 원인"(=포장/라벨링), "마킹 불량"(=주입·캡핑), "캡 토크 부족", "서보 알람", "탄산캔라인 포장기 컷팅 불량"
+- 되묻기: "설비가 안 돼요"(라인 되묻기), "라벨러가 이상해요"(증상 막연 → 라인/증상 되묻기)
 
 반드시 JSON만 출력(설명 금지):
 {"sufficient": true}
-또는 {"sufficient": false, "question": "되물을 한국어 질문", "options": ["보기1","보기2","보기3"]}`
+또는 {"sufficient": false, "question": "되물을 한국어 질문", "options": ["보기1","보기2"]}`
   try {
     const messages = [{ role: 'system' as const, content: sys }, ...historyToMessages(history), { role: 'user' as const, content: question }]
     const raw = await callOpenAIMessages(messages, 0)
@@ -169,7 +169,7 @@ async function triageQuestion(question: string, history: Turn[]): Promise<Triage
   }
 }
 
-async function generateAnswer(question: string, contexts: any[], manualCtx: ManualSource[], lowRelevance: boolean, history: Turn[] = []): Promise<string> {
+async function generateAnswer(question: string, contexts: any[], manualCtx: ManualSource[], lowRelevance: boolean, history: Turn[] = [], scopeNote = ''): Promise<string> {
   const contextText = contexts.length
     ? contexts.map((c, i) => `[사례 ${i+1}] (유사도 ${Math.round((c.similarity ?? 0) * 100)}%) ${c.title}\n- 공장/공정: ${c.factory}, ${c.target_process || '미지정'}\n- 설비: ${c.equipment || '미지정'}\n- 발생 원인: ${c.cause}\n- 조치 사항: ${c.action}`).join('\n\n')
     : '(질문과 충분히 일치하는 과거 사례 없음)'
@@ -199,7 +199,7 @@ ${lowRelevance ? '\n[현재 검색 결과 판정] lowRelevance = true (질문과
 - 한국어로 친절하고 명확하게
 - 500자 이내`
 
-  const userPrompt = `[현재 질문 기준 과거 유사 사례]
+  const userPrompt = `${scopeNote ? `[검색 범위] ${scopeNote}\n\n` : ''}[현재 질문 기준 과거 유사 사례]
 ${contextText}
 
 [현재 질문 기준 관련 교육자료 강사노하우]
@@ -284,13 +284,43 @@ export async function POST(req: NextRequest) {
     } })
   }
 
+  // ── 라인/공정(카테고리) 기반 사례 사전 필터 → 부분집합에서 임베딩 top-K ──
+  // 누적 대화(되묻기 답 포함)에서 라인·카테고리 추출. equipment 빈값이어도 workplace(라인)로 판정.
+  const convText = [...history.map(h => h.question), question].join(' ')
+  const qLine = detectLineFromText(convText)
+  const kwCats = classifyByKeywords(convText).filter(c => c !== 'etc')
+  const qCatsSpecific = [...new Set([...queryCats.filter(c => c !== 'etc'), ...kwCats])]
+
+  const MIN_POOL = 8
+  const incidentMap = new Map(incidents.map(i => [i.id, i]))
+
+  // 라인 = 하드 필터(지정 시 다른 라인 배제). 공정/카테고리 = 소프트(부분집합 너무 작으면 완화).
+  let pool = incidents
+  let appliedLine: string | null = null
+  if (qLine) { pool = incidents.filter(i => incidentLine.get(i.id) === qLine); appliedLine = qLine }
+  let appliedCats: string[] = []
+  if (qCatsSpecific.length) {
+    const f = pool.filter(i => incidentCats.get(i.id)!.some(c => qCatsSpecific.includes(c)))
+    if (f.length >= MIN_POOL) { pool = f; appliedCats = qCatsSpecific }
+  }
+  const poolIds = new Set(pool.map(i => i.id))
+
   const scored = Object.entries(embeddings)
+    .filter(([id]) => poolIds.has(id))
     .map(([id, emb]) => ({ id, sim: cosSim(qEmb, emb) }))
     .sort((a, b) => b.sim - a.sim)
     .slice(0, 5)
 
-  // 매뉴얼/교육자료 인덱스도 같은 질문 임베딩으로 검색 (사례와 동일 모델·공간)
-  const manualScored = Object.entries(manualEmbeddings)
+  // 매뉴얼/교육자료 인덱스도 같은 임베딩으로 검색. 질문 카테고리에 해당 교본군이 있으면 그쪽으로 편향.
+  const CAT_MANUAL_PREFIX: Record<string, string> = { labeler: 'manual-', blower: 'blowmoulder-', packer: 'packer-' }
+  const wantPrefixes = [...new Set(qCatsSpecific.map(c => CAT_MANUAL_PREFIX[c]).filter(Boolean))]
+  if (/전기|plc|서보|인버터|제어|전장|모터|통신|센서|드라이브/i.test(convText)) wantPrefixes.push('electric-')
+  let manualEntries = Object.entries(manualEmbeddings)
+  if (wantPrefixes.length) {
+    const f = manualEntries.filter(([id]) => wantPrefixes.some(p => id.startsWith(p)))
+    if (f.length) manualEntries = f
+  }
+  const manualScored = manualEntries
     .map(([id, emb]) => ({ id, sim: cosSim(qEmb, emb) }))
     .sort((a, b) => b.sim - a.sim)
     .slice(0, MANUAL_TOPK)
@@ -299,7 +329,6 @@ export async function POST(req: NextRequest) {
     .map(s => buildManualSource(s.id, s.sim))
     .filter((x): x is ManualSource => x !== null)
 
-  const incidentMap = new Map(incidents.map(i => [i.id, i]))
   const similar = scored.map(s => {
     const inc = incidentMap.get(s.id)
     if (!inc) return null
@@ -308,25 +337,27 @@ export async function POST(req: NextRequest) {
 
   const RELEVANCE_THRESHOLD = 0.35   // OpenAI text-embedding-3-small 스케일 보정 (관련 0.42+, 무관 ~0.30)
   const topSim = scored[0]?.sim ?? 0
-  const cosineLow = topSim < RELEVANCE_THRESHOLD
+  const noCasesInScope = scored.length === 0                 // 지정 라인/공정에 사례 없음
+  const lowRelevance = noCasesInScope || topSim < RELEVANCE_THRESHOLD
 
   const topContexts = scored.slice(0, 3)
     .map(s => { const inc = incidentMap.get(s.id); return inc ? { ...inc, similarity: s.sim } : null })
     .filter(Boolean) as any[]
 
-  // 설비 불일치 감지: top 사례 설비 카테고리 ∩ 질문 카테고리 = ∅ 이면 cosine 높아도 lowRelevance 강제
-  const caseCats = [...new Set(topContexts.flatMap(c => classifyCase(c)))]
-  const qSpecific = queryCats.filter(c => c !== 'etc')
-  const cSpecific = caseCats.filter(c => c !== 'etc')
-  const equipmentMismatch = qSpecific.length > 0 && cSpecific.length > 0 && !qSpecific.some(c => cSpecific.includes(c))
-  const lowRelevance = cosineLow || equipmentMismatch
+  const scopeLabel = [appliedLine ? `라인=${appliedLine}` : null, appliedCats.length ? `공정=${appliedCats.map(c => CATEGORY_LABELS[c] || c).join('/')}` : null].filter(Boolean).join(', ')
+  const scopeNote = scopeLabel
+    ? (noCasesInScope ? `검색 범위(${scopeLabel})에 일치하는 과거 사례가 없습니다. 해당 라인/공정에 사례가 없다고 솔직히 밝히세요.` : `검색은 [${scopeLabel}] 범위로 한정되었습니다.`)
+    : ''
 
-  console.log('[ai-search] q=%j topSim=%s queryCats=%j caseCats=%j mismatch=%s lowRelevance=%s manual=%d(top=%s)',
-    question, topSim.toFixed(3), queryCats, caseCats, equipmentMismatch, lowRelevance,
-    manualSources.length, (manualScored[0]?.sim ?? 0).toFixed(3))
+  console.log('[ai-search] q=%j line=%j cats=%j pool=%d topSim=%s low=%s manual=%d',
+    question, appliedLine, qCatsSpecific, pool.length, topSim.toFixed(3), lowRelevance, manualSources.length)
   try {
-    const answer = await generateAnswer(question, topContexts, manualSources, lowRelevance, history)
-    return NextResponse.json({ success: true, data: { answer, similar, manualSources, lowRelevance, needsClarification: false, model: CHAT_MODEL, modelLabel: modelLabel(CHAT_MODEL), embedModel: EMBED_MODEL } })
+    const answer = await generateAnswer(question, topContexts, manualSources, lowRelevance, history, scopeNote)
+    return NextResponse.json({ success: true, data: {
+      answer, similar, manualSources, lowRelevance, needsClarification: false,
+      scope: { line: appliedLine, categories: appliedCats.map(c => CATEGORY_LABELS[c] || c) },
+      model: CHAT_MODEL, modelLabel: modelLabel(CHAT_MODEL), embedModel: EMBED_MODEL,
+    } })
   } catch (e) {
     console.error('[incident-ai-search] OpenAI error:', e)
     return NextResponse.json({ success: false, error: { message: '답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' } }, { status: 503 })
