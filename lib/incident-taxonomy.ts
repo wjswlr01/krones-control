@@ -31,6 +31,20 @@ export const CATEGORY_LABELS: Record<string, string> = {
   labeler: '라벨링', packer: '포장', palletizer: '적재', conveyor: '이송', inspector: '검사', etc: '기타',
 }
 
+// 되묻기 칩용 카테고리 표시명 (사람이 알아보는 설비명). 칩 선택 시 그대로 다음 질문이 되며,
+// classifyByKeywords로 다시 단일 카테고리에 정확히 매핑되도록 키워드를 포함해 둠.
+export const CANDIDATE_LABELS: Record<string, string> = {
+  packer: '번들포장기·포장',
+  labeler: 'OPP라벨러·라벨링',
+  filler: '주입·캡핑',
+  blower: '제병기',
+  palletizer: '적재기',
+  depalletizer: '투입기',
+  water: '취수',
+  conveyor: '이송 컨베이어',
+  inspector: '검사기',
+}
+
 // target_process(공정) → 카테고리. equipment 빈값 보완용.
 export const PROCESS_TO_CATEGORY: Record<string, string> = {
   취수: 'water', 투입: 'depalletizer', 주입: 'filler', 포장: 'packer', 적재: 'palletizer',

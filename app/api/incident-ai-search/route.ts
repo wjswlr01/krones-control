@@ -8,7 +8,7 @@ import { getManual, getEquipmentGroup } from '@/lib/manuals'
 import { CHAT_MODEL, EMBED_MODEL, modelLabel } from '@/lib/ai-model'
 import {
   classifyByKeywords, classifyCase, normalizeLine, detectLineFromText,
-  CATEGORY_KEYWORDS, CATEGORY_LABELS, LINE_GROUPS, PROCESS_CHIPS,
+  CATEGORY_KEYWORDS, CATEGORY_LABELS, CANDIDATE_LABELS, LINE_GROUPS, PROCESS_CHIPS,
 } from '@/lib/incident-taxonomy'
 
 export const maxDuration = 60
@@ -81,9 +81,11 @@ async function classifyQuestionEquipment(question: string): Promise<string[]> {
 - inspector(비전/검사/X-ray)
 - etc(그외/불명확)
 규칙:
-- 1개 이상 선택, 가장 가능성 높은 카테고리 위주.
-- '컷팅/필름 컷팅'은 보통 packer(포장 필름) 또는 labeler(라벨 컷팅). '캡·DMC·마킹·코딩 불량'은 filler.
-- 모호어 주의: '넥'은 넥라벨(labeler)일 수도, 병목 넥(filler)일 수도 있으니 문맥으로 판단.
+- ★증상이 여러 설비에 걸쳐 후보가 갈리면 해당 카테고리를 모두 나열하세요. 한 곳으로 단정하지 마세요.
+  · 단독 '컷팅/컷팅 불량'(수식어 없음) → ["packer","labeler"] (필름 컷팅 vs 라벨 컷팅 둘 다 가능)
+  · '필름 컷팅/번들 컷팅' → ["packer"], '라벨 컷팅' → ["labeler"] (수식어로 한정되면 1개)
+- 후보가 하나로 분명하면 1개만: '마킹·DMC·캡 불량'→["filler"], '서보 알람'→["filler"]나 전기성이면 그대로, '필름 끊김'→["packer"], '라벨 밀림'→["labeler"]
+- 모호어 주의: '넥'은 넥라벨(labeler)일 수도, 병목 넥(filler)일 수도 → 둘 다 나열.
 - 반드시 JSON만 출력: {"categories":["..."]}`
   try {
     const raw = await callOpenAI(sys, question, 0)
@@ -273,13 +275,28 @@ export async function POST(req: NextRequest) {
   ])
   if (!qEmb) return NextResponse.json({ success: false, error: { message: '임베딩 생성 실패' } }, { status: 500 })
 
-  // 정보 부족 → 검색/단정 답변 보류하고 핵심 1~2개만 되물음
-  if (triage.needsClarification) {
-    console.log('[ai-search] q=%j → CLARIFY %j opts=%j', question, triage.clarifyingQuestion, triage.clarifyOptions)
+  // ── 후보 카테고리 산출 (GPT 우선, 비면 키워드). 후보가 2개 이상 갈리면 그 후보를 직접 되묻기 ──
+  const gptCats = queryCats.filter(c => c !== 'etc')
+  const kwNow = classifyByKeywords(question).filter(c => c !== 'etc')
+  const candidateCats = [...new Set(gptCats.length ? gptCats : kwNow)]
+
+  let effTriage = triage
+  if (!skipTriage && candidateCats.length >= 2) {
+    // 같은 증상이 여러 설비 후보로 갈림(예: '컷팅'→포장+라벨링) → 단정 말고 후보를 선택지로 제시
+    effTriage = {
+      needsClarification: true,
+      clarifyingQuestion: '여러 설비에서 발생할 수 있는 증상입니다. 어느 설비/공정인가요?',
+      clarifyOptions: candidateCats.map(c => CANDIDATE_LABELS[c] || CATEGORY_LABELS[c] || c),
+    }
+  }
+
+  // 정보 부족/모호 → 검색·단정 답변 보류하고 되물음
+  if (effTriage.needsClarification) {
+    console.log('[ai-search] q=%j → CLARIFY %j opts=%j (candidates=%j)', question, effTriage.clarifyingQuestion, effTriage.clarifyOptions, candidateCats)
     return NextResponse.json({ success: true, data: {
       needsClarification: true,
-      clarifyingQuestion: triage.clarifyingQuestion,
-      clarifyOptions: triage.clarifyOptions,
+      clarifyingQuestion: effTriage.clarifyingQuestion,
+      clarifyOptions: effTriage.clarifyOptions,
       answer: '', similar: [], manualSources: [], lowRelevance: false,
     } })
   }
@@ -288,8 +305,10 @@ export async function POST(req: NextRequest) {
   // 누적 대화(되묻기 답 포함)에서 라인·카테고리 추출. equipment 빈값이어도 workplace(라인)로 판정.
   const convText = [...history.map(h => h.question), question].join(' ')
   const qLine = detectLineFromText(convText)
-  const kwCats = classifyByKeywords(convText).filter(c => c !== 'etc')
-  const qCatsSpecific = [...new Set([...queryCats.filter(c => c !== 'etc'), ...kwCats])]
+  // 칩으로 막 좁힌 turn(recentlyClarified)이면 현재 질문의 카테고리만 사용(과거 모호 카테고리 무시 → 정확히 필터).
+  const qCatsSpecific = recentlyClarified
+    ? [...new Set(kwNow.length ? kwNow : gptCats)]
+    : [...new Set([...gptCats, ...classifyByKeywords(convText).filter(c => c !== 'etc')])]
 
   const MIN_POOL = 8
   const incidentMap = new Map(incidents.map(i => [i.id, i]))
