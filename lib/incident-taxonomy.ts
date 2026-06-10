@@ -6,6 +6,7 @@
 export interface CaseLike {
   equipment?: string
   title?: string
+  cause?: string
   workplace?: string
   workplace_type?: string
   target_process?: string
@@ -17,7 +18,7 @@ export interface CaseLike {
 export const CATEGORY_KEYWORDS: Record<string, RegExp> = {
   water:        /취수|지하수|용수|정수|연수|역삼투|살균수|\bRO\b|\bUF\b/i,
   depalletizer: /투입기|투입|디팔|언로더|벌크|bulk|de-?pal/i,
-  blower:       /프리폼|블로우|블로워|브로워|성형|몰드|제병|blow|preform/i,
+  blower:       /프리폼|블로우|블로워|브로워|성형|몰드|제병|blow|preform|인플란트|implant/i,
   filler:       /필러|충전|충진|주입|밀봉|어셉|어셉틱|asept|병목|넥부|액위|밸브|filler|캡퍼|캡핑|뚜껑|토크|씰러|시머|seamer|capper|캡|\bcap|dmc|코딩|마킹|날짜코/i,
   labeler:      /라벨|라벨라|글루|스타휠|슬리브|sleeve|수축라벨|쉬링크라벨|시링크라벨|opp|label|컷팅|커팅|cutting/i,
   packer:       /포장기|포장|번들|랩핑|랩퍼|트레이|tray|팩커|메이팩|packer|wrap|shrink.?pack|박스포장|카톤|carton|컷팅|커팅|cutting/i,
@@ -55,8 +56,10 @@ export function classifyByKeywords(text: string): string[] {
   return cats.length ? cats : ['etc']
 }
 
-// 사례 분류 (보강): ① equipment 키워드 → ② target_process 보완 → ③ title 키워드 → etc
+// 사례 분류 (보강): ⓪인플란트(제병) 우선 → ① equipment 키워드 → ② target_process 보완 → ③ title 키워드 → etc
 export function classifyCase(c: CaseLike): string[] {
+  // 인플란트(implant) = PET라인의 제병 설비 → equipment(투입기/주입기 등)보다 우선해 제병(blower)으로 분류
+  if (/인플란트|implant/i.test(`${c.equipment || ''} ${c.title || ''} ${c.cause || ''}`)) return ['blower']
   if (c.equipment) { const e = classifyByKeywords(c.equipment); if (e[0] !== 'etc') return e }
   const p = PROCESS_TO_CATEGORY[(c.target_process || '').trim()]
   if (p) return [p]
@@ -68,7 +71,7 @@ export function classifyCase(c: CaseLike): string[] {
 // ── 라인 11그룹 (호기 통합) ──────────────────────────────────────
 // 'PET라인'은 용기 기준 통합: 탄산펫·소주펫·주스펫·생수펫·펫1/2호 등 일반 PET 라인 전부.
 // (어셉틱펫은 무균라인이라 별도 '어셉틱' 그룹으로 유지 — PET라인에 넣지 않음)
-export const LINE_GROUPS = ['PET라인', '탄산캔', '어셉틱', 'BIB', '커피캔', '드링크팩', '병', '주스캔', '인플란트', '멀티', '사출'] as const
+export const LINE_GROUPS = ['PET라인', '탄산캔', '어셉틱', 'BIB', '커피캔', '드링크팩', '병', '주스캔', '멀티', '사출'] as const
 export type LineGroup = (typeof LINE_GROUPS)[number]
 
 // workplace(+ workplace_type 폴백) → 11그룹 또는 null(기타)
@@ -81,7 +84,7 @@ export function normalizeLine(c: CaseLike): LineGroup | null {
   if (/주스캔/.test(w)) return '주스캔'
   if (/어셉틱|asept/i.test(w)) return '어셉틱'        // 어셉틱펫 포함 — PET라인보다 먼저 매칭
   if (/사출/.test(w) || t === '사출') return '사출'
-  if (/인플란트|implant/i.test(w) || t === '인플란트') return '인플란트'
+  if (/인플란트|implant/i.test(w) || t === '인플란트') return 'PET라인'   // 인플란트 = PET라인 제병 설비(독립 라인 아님)
   if (/멀티|multi/i.test(w) || t === '멀티') return '멀티'
   if (/병\s*\d*\s*호|^병/.test(w)) return '병'
   if (/캔/.test(w)) return '탄산캔'
