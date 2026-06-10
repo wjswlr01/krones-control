@@ -65,11 +65,13 @@ export function classifyCase(c: CaseLike): string[] {
   return ['etc']
 }
 
-// ── 라인 8그룹 (호기 통합) ───────────────────────────────────────
-export const LINE_GROUPS = ['탄산PET', '탄산캔', '커피캔', '어셉틱', 'BIB', '주스캔', '드링크팩', '병'] as const
+// ── 라인 11그룹 (호기 통합) ──────────────────────────────────────
+// 'PET라인'은 용기 기준 통합: 탄산펫·소주펫·주스펫·생수펫·펫1/2호 등 일반 PET 라인 전부.
+// (어셉틱펫은 무균라인이라 별도 '어셉틱' 그룹으로 유지 — PET라인에 넣지 않음)
+export const LINE_GROUPS = ['PET라인', '탄산캔', '어셉틱', 'BIB', '커피캔', '드링크팩', '병', '주스캔', '인플란트', '멀티', '사출'] as const
 export type LineGroup = (typeof LINE_GROUPS)[number]
 
-// workplace(+ workplace_type 폴백) → 8그룹 또는 null(사출/멀티/인플란트 등 기타)
+// workplace(+ workplace_type 폴백) → 11그룹 또는 null(기타)
 export function normalizeLine(c: CaseLike): LineGroup | null {
   const w = (c.workplace || '').trim()
   const t = (c.workplace_type || '').trim()
@@ -77,14 +79,15 @@ export function normalizeLine(c: CaseLike): LineGroup | null {
   if (/드링크팩|프리즈마|prisma/i.test(w)) return '드링크팩'
   if (/커피캔|커피/.test(w)) return '커피캔'
   if (/주스캔/.test(w)) return '주스캔'
-  if (/어셉틱|asept/i.test(w)) return '어셉틱'
-  if (/사출|인플란트|제성/.test(w)) return null            // 프리폼 사출 라인 → 기타
-  if (/멀티|multi/i.test(w)) return null
+  if (/어셉틱|asept/i.test(w)) return '어셉틱'        // 어셉틱펫 포함 — PET라인보다 먼저 매칭
+  if (/사출/.test(w) || t === '사출') return '사출'
+  if (/인플란트|implant/i.test(w) || t === '인플란트') return '인플란트'
+  if (/멀티|multi/i.test(w) || t === '멀티') return '멀티'
   if (/병\s*\d*\s*호|^병/.test(w)) return '병'
   if (/캔/.test(w)) return '탄산캔'
-  if (/펫|pet/i.test(w)) return '탄산PET'
-  // 이름으로 안 잡히면 용기타입 폴백 (산청·백학 등 OEM PET/캔 라인)
-  if (t === 'PET') return '탄산PET'
+  if (/펫|pet/i.test(w)) return 'PET라인'           // 탄산펫·소주펫·주스펫·생수펫·펫N호 등
+  // 이름으로 안 잡히면 용기타입 폴백 (산청·백학 등 OEM 라인)
+  if (t === 'PET') return 'PET라인'
   if (t === '캔') return '탄산캔'
   if (t === '병') return '병'
   if (t === '드링크') return '드링크팩'
@@ -92,7 +95,7 @@ export function normalizeLine(c: CaseLike): LineGroup | null {
   return null
 }
 
-// 질문 텍스트에서 라인 추정 (workplace_type 없음 → 이름 토큰만). 8그룹 칩 라벨도 그대로 매칭.
+// 질문 텍스트에서 라인 추정 (workplace_type 없음 → 이름 토큰만). 라인 칩 라벨도 그대로 매칭.
 export function detectLineFromText(text: string): LineGroup | null {
   return normalizeLine({ workplace: text })
 }
