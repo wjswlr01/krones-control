@@ -14,12 +14,13 @@ export interface CaseLike {
 
 // ── 설비 카테고리 ────────────────────────────────────────────────
 // 신규: water(취수), depalletizer(투입), packer(포장), palletizer(적재)
-// filler 에 캡퍼/시머/캡/DMC/마킹/코딩 흡수(캡·DMC 불량도 주입·밀봉 맥락 filler)
+// filler 에 캡퍼/시머/캡 흡수(캡핑은 주입기와 한 설비). 단 DMC/마킹/코딩은 코드 마킹 공정이라 coding 으로 분리.
 export const CATEGORY_KEYWORDS: Record<string, RegExp> = {
   water:        /취수|지하수|용수|정수|연수|역삼투|살균수|\bRO\b|\bUF\b/i,
   depalletizer: /투입기|투입|디팔|언로더|벌크|bulk|de-?pal/i,
   blower:       /프리폼|블로우|블로워|브로워|성형|몰드|제병|blow|preform|인플란트|implant/i,
-  filler:       /필러|충전|충진|주입|밀봉|어셉|어셉틱|asept|병목|넥부|액위|밸브|filler|캡퍼|캡핑|뚜껑|토크|씰러|시머|seamer|capper|캡|\bcap|dmc|코딩|마킹|날짜코/i,
+  coding:       /dmc|데이터매트릭스|마킹|마커|코딩|코더|coder|coding|잉크젯|inkjet|데이트코드|날짜코|레이저각인|레이저마킹|laser.?mark|코드인쇄/i,
+  filler:       /필러|충전|충진|주입|밀봉|어셉|어셉틱|asept|병목|넥부|액위|밸브|filler|캡퍼|캡핑|뚜껑|토크|씰러|시머|seamer|capper|캡|\bcap/i,
   labeler:      /라벨|라벨라|글루|스타휠|슬리브|sleeve|수축라벨|쉬링크라벨|시링크라벨|opp|label|컷팅|커팅|cutting/i,
   packer:       /포장기|포장|번들|랩핑|랩퍼|트레이|tray|팩커|메이팩|packer|wrap|shrink.?pack|박스포장|카톤|carton|컷팅|커팅|cutting/i,
   palletizer:   /적재기|적재|팔레타이|파렛타이|파레트|palletiz/i,
@@ -28,7 +29,7 @@ export const CATEGORY_KEYWORDS: Record<string, RegExp> = {
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {
-  water: '취수', depalletizer: '투입', blower: '제병', filler: '주입·캡핑',
+  water: '취수', depalletizer: '투입', blower: '제병', coding: '코딩', filler: '주입·캡핑',
   labeler: '라벨링', packer: '포장', palletizer: '적재', conveyor: '이송', inspector: '검사', etc: '기타',
 }
 
@@ -38,6 +39,7 @@ export const CANDIDATE_LABELS: Record<string, string> = {
   packer: '번들포장기·포장',
   labeler: 'OPP라벨러·라벨링',
   filler: '주입·캡핑',
+  coding: '잉크젯코더·마킹',
   blower: '제병기',
   palletizer: '적재기',
   depalletizer: '투입기',
@@ -109,6 +111,7 @@ export const PROCESS_CHIPS: { label: string; category: string }[] = [
   { label: '투입', category: 'depalletizer' },
   { label: '제병', category: 'blower' },
   { label: '주입·캡핑', category: 'filler' },
+  { label: '코딩', category: 'coding' },
   { label: '라벨링', category: 'labeler' },
   { label: '포장', category: 'packer' },
   { label: '적재', category: 'palletizer' },
